@@ -14,6 +14,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   TextField,
   CircularProgress,
 } from '@mui/material';
@@ -191,38 +192,33 @@ const Alerts: React.FC = () => {
                 onChange={(e) => setAnalystNote(e.target.value)}
                 sx={{ mt: 2 }}
               />
-              <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button 
-                  variant="contained" 
-                  color="error" 
-                  onClick={() => handleStatusChange(selectedAlert.id, 'CONFIRMED')}
-                >
-                  Confirm Threat
-                </Button>
-                <Button 
-                  variant="contained" 
-                  color="success" 
-                  onClick={() => handleStatusChange(selectedAlert.id, 'FALSE_POSITIVE')}
-                >
-                  False Positive
-                </Button>
-                <Button 
-                  variant="contained" 
-                  color="info" 
-                  onClick={() => handleStatusChange(selectedAlert.id, 'INVESTIGATING')}
-                >
-                  Investigate
-                </Button>
-                <Button 
-                  variant="outlined" 
-                  onClick={() => setDialogOpen(false)}
-                >
-                  Close
-                </Button>
-              </Box>
             </Box>
           )}
         </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button 
+            variant="contained" 
+            color="error" 
+            onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'CONFIRMED')}
+          >
+            Confirm Threat
+          </Button>
+          <Button 
+            variant="contained" 
+            color="success" 
+            onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'FALSE_POSITIVE')}
+          >
+            False Positive
+          </Button>
+          <Button 
+            variant="contained" 
+            color="info" 
+            onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'INVESTIGATING')}
+          >
+            Investigate
+          </Button>
+        </DialogActions>
       </Dialog>
     </Box>
   );
