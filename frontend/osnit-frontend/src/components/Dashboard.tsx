@@ -26,6 +26,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PeopleIcon from '@mui/icons-material/People';
+import { useNavigate } from 'react-router-dom';
 
 interface Stats {
   totalAlerts: number;
@@ -40,6 +41,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -77,6 +79,11 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleCardClick = (path: string) => {
+    console.log('Navigating to:', path);
+    navigate(path);
+  };
+
   const getStatusColor = (status: string) => {
     switch(status) {
       case 'CONFIRMED': return 'error';
@@ -102,7 +109,8 @@ const Dashboard: React.FC = () => {
       color: '#1976d2',
       icon: <WarningIcon sx={{ fontSize: 40, color: '#1976d2' }} />,
       bgColor: 'rgba(25, 118, 210, 0.1)',
-      link: '/alerts'
+      path: '/alerts',
+      description: 'View all alerts'
     },
     { 
       title: 'Pending Review', 
@@ -110,7 +118,8 @@ const Dashboard: React.FC = () => {
       color: '#ff9800',
       icon: <TrendingUpIcon sx={{ fontSize: 40, color: '#ff9800' }} />,
       bgColor: 'rgba(255, 152, 0, 0.1)',
-      link: '/alerts'
+      path: '/alerts',
+      description: 'Requires your attention'
     },
     { 
       title: 'Confirmed Threats', 
@@ -118,7 +127,8 @@ const Dashboard: React.FC = () => {
       color: '#dc004e',
       icon: <CheckCircleIcon sx={{ fontSize: 40, color: '#dc004e' }} />,
       bgColor: 'rgba(220, 0, 78, 0.1)',
-      link: '/alerts'
+      path: '/alerts',
+      description: 'Verified threats'
     },
     { 
       title: 'Active Protectees', 
@@ -126,65 +136,72 @@ const Dashboard: React.FC = () => {
       color: '#4caf50',
       icon: <PeopleIcon sx={{ fontSize: 40, color: '#4caf50' }} />,
       bgColor: 'rgba(76, 175, 80, 0.1)',
-      link: '/protectees'
+      path: '/protectees',
+      description: 'People protected'
     },
   ];
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 600, mb: 1 }}>
-        Dashboard Overview
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Real-time threat intelligence and monitoring summary
-      </Typography>
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+          Dashboard Overview
+        </Typography>
+        <Typography variant="body1" color="text.secondary">
+          Real-time threat intelligence and monitoring summary
+        </Typography>
+      </Box>
 
       <Grid container spacing={3}>
         {statCards.map((stat) => (
           <Grid key={stat.title} size={{ xs: 12, sm: 6, md: 3 }}>
-            <a href={stat.link} style={{ textDecoration: 'none' }}>
-              <Card 
-                sx={{ 
-                  height: '100%',
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  cursor: 'pointer',
-                  '&:hover': {
-                    transform: 'translateY(-8px)',
-                    boxShadow: 8,
-                  },
-                }}
-              >
-                <CardContent>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                        {stat.title}
-                      </Typography>
-                      <Typography variant="h3" sx={{ fontWeight: 700, color: stat.color }}>
-                        {stat.value}
-                      </Typography>
-                    </Box>
-                    <Box 
-                      sx={{ 
-                        p: 1, 
-                        borderRadius: 2, 
-                        bgcolor: stat.bgColor,
-                      }}
-                    >
-                      {stat.icon}
-                    </Box>
+            <Card 
+              sx={{ 
+                height: '100%',
+                cursor: 'pointer',
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-8px)',
+                  boxShadow: 8,
+                },
+              }}
+              onClick={() => handleCardClick(stat.path)}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <Box>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      {stat.title}
+                    </Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 700, color: stat.color }}>
+                      {stat.value}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                      {stat.description}
+                    </Typography>
                   </Box>
-                  <Typography variant="caption" color="primary" sx={{ display: 'block', mt: 2 }}>
+                  <Box 
+                    sx={{ 
+                      p: 1, 
+                      borderRadius: 2, 
+                      bgcolor: stat.bgColor,
+                    }}
+                  >
+                    {stat.icon}
+                  </Box>
+                </Box>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Typography variant="caption" color="primary" sx={{ fontWeight: 600 }}>
                     Click to view →
                   </Typography>
-                </CardContent>
-              </Card>
-            </a>
+                </Box>
+              </CardContent>
+            </Card>
           </Grid>
         ))}
 
         <Grid size={{ xs: 12, md: 8 }}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: 3, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
                 Alert Trend
@@ -212,16 +229,18 @@ const Dashboard: React.FC = () => {
         </Grid>
 
         <Grid size={{ xs: 12, md: 4 }}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: 3, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>
                 Recent Alerts
               </Typography>
-              <a href="/alerts" style={{ textDecoration: 'none' }}>
-                <Button size="small" color="primary">
-                  View All
-                </Button>
-              </a>
+              <Button 
+                size="small" 
+                color="primary"
+                onClick={() => navigate('/alerts')}
+              >
+                View All
+              </Button>
             </Box>
             <Divider sx={{ mb: 2 }} />
             {recentAlerts.length > 0 ? (
@@ -241,7 +260,11 @@ const Dashboard: React.FC = () => {
                         color={getStatusColor(alert.status)}
                       />
                     </Box>
-                    <Typography variant="body2" sx={{ mt: 1, mb: 0.5 }}>
+                    <Typography 
+                      variant="body2" 
+                      sx={{ mt: 1, mb: 0.5, cursor: 'pointer' }}
+                      onClick={() => navigate('/alerts')}
+                    >
                       {alert.content?.substring(0, 60)}
                       {alert.content?.length > 60 && '...'}
                     </Typography>
@@ -256,6 +279,9 @@ const Dashboard: React.FC = () => {
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Typography variant="body2" color="text.secondary">
                   No alerts yet
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Alerts will appear here when threats are detected
                 </Typography>
               </Box>
             )}
