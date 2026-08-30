@@ -53,24 +53,28 @@ const Research: React.FC = () => {
 
     try {
       // Fetch real data from your backend
-      const [alertsRes, collectedRes] = await Promise.all([
+      const [alertsRes, protecteesRes] = await Promise.all([
         api.get('/alerts'),
-        api.get('/collected'),
+        api.get('/protectees'),
       ]);
 
       const allResults: SearchResult[] = [];
 
       // Process alerts
       alertsRes.data.forEach((alert: any) => {
+        const content = alert.content || '';
+        const protecteeName = alert.protectee?.name || '';
+        const searchLower = searchQuery.toLowerCase();
+        
         if (
-          alert.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          alert.protectee?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+          content.toLowerCase().includes(searchLower) ||
+          protecteeName.toLowerCase().includes(searchLower)
         ) {
           allResults.push({
             id: alert.id,
             source: alert.source || 'Unknown',
             title: `Alert from ${alert.source || 'Unknown'}`,
-            content: alert.content || '',
+            content: content,
             date: alert.createdAt || new Date().toISOString(),
             relevance: alert.riskScore || 50,
             verified: alert.status === 'CONFIRMED',
@@ -81,23 +85,27 @@ const Research: React.FC = () => {
         }
       });
 
-      // Process collected data
-      collectedRes.data.forEach((item: any) => {
+      // Also include protectees that match
+      protecteesRes.data.forEach((protectee: any) => {
+        const name = protectee.name || '';
+        const keywords = (protectee.keywords || []).join(' ');
+        const searchLower = searchQuery.toLowerCase();
+        
         if (
-          item.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.protectee?.name?.toLowerCase().includes(searchQuery.toLowerCase())
+          name.toLowerCase().includes(searchLower) ||
+          keywords.toLowerCase().includes(searchLower)
         ) {
           allResults.push({
-            id: item.id,
-            source: item.source || 'Unknown',
-            title: `Collected from ${item.source || 'Unknown'}`,
-            content: item.content || '',
-            date: item.postedDate || item.collectedAt || new Date().toISOString(),
-            relevance: item.aiAnalysis?.threatScore || 50,
-            verified: false,
-            url: item.url || null,
-            author: item.author || null,
-            type: 'collected',
+            id: protectee.id,
+            source: 'Protectee Profile',
+            title: `Protectee: ${protectee.name}`,
+            content: `Name: ${protectee.name}\nTitle: ${protectee.title || 'N/A'}\nKeywords: ${(protectee.keywords || []).join(', ')}\nLocations: ${(protectee.locations || []).join(', ')}`,
+            date: protectee.createdAt || new Date().toISOString(),
+            relevance: 80,
+            verified: true,
+            url: null,
+            author: 'System',
+            type: 'historical',
           });
         }
       });
@@ -106,6 +114,24 @@ const Research: React.FC = () => {
       allResults.sort((a, b) => b.relevance - a.relevance);
 
       setResults(allResults);
+
+      if (allResults.length === 0) {
+        // Add a helpful message
+        setResults([
+          {
+            id: 'no-results',
+            source: 'System',
+            title: 'No results found',
+            content: `No alerts or protectees found matching "${searchQuery}".\n\nTry:\n- Checking if any alerts exist for this person\n- Adding a protectee with this name\n- Using different keywords`,
+            date: new Date().toISOString(),
+            relevance: 0,
+            verified: false,
+            url: null,
+            author: 'System',
+            type: 'historical',
+          }
+        ]);
+      }
     } catch (error) {
       console.error('Search error:', error);
     } finally {
@@ -135,6 +161,7 @@ const Research: React.FC = () => {
     if (s.includes('facebook')) return '📘';
     if (s.includes('news')) return '📰';
     if (s.includes('forum')) return '💬';
+    if (s.includes('protectee')) return '🛡️';
     return '📌';
   };
 
@@ -153,7 +180,7 @@ const Research: React.FC = () => {
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             sx={{ flex: 1, minWidth: 200 }}
-            placeholder="e.g. John Mahama, threat, violence, protest"
+            placeholder="e.g. John Mahama, threat, violence"
           />
           <Button 
             variant="contained" 
@@ -167,7 +194,7 @@ const Research: React.FC = () => {
         <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Chip label="📰 Real News Sources" color="primary" variant="outlined" />
           <Chip label="🐦 Social Media Mentions" variant="outlined" />
-          <Chip label="📄 Public Records" variant="outlined" />
+          <Chip label="🛡️ Protectee Profiles" variant="outlined" />
           <Chip label="📊 AI Analyzed" variant="outlined" />
         </Box>
       </Paper>
@@ -181,7 +208,7 @@ const Research: React.FC = () => {
       {results.length > 0 && (
         <>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Found {results.length} real result{results.length > 1 ? 's' : ''}
+            Found {results.length} result{results.length > 1 ? 's' : ''}
           </Typography>
           <Grid container spacing={2}>
             {results.map((result) => (
@@ -198,7 +225,11 @@ const Research: React.FC = () => {
                                result.relevance >= 40 ? '4px solid #ff9800' : 
                                '4px solid #4caf50',
                   }}
-                  onClick={() => handleResultClick(result)}
+                  onClick={() => {
+                    if (result.id !== 'no-results') {
+                      handleResultClick(result);
+                    }
+                  }}
                 >
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -214,11 +245,13 @@ const Research: React.FC = () => {
                         </Typography>
                       </Box>
                       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                        <Chip 
-                          label={`${result.relevance}% risk`}
-                          color={getRelevanceColor(result.relevance)}
-                          size="small"
-                        />
+                        {result.relevance > 0 && (
+                          <Chip 
+                            label={`${result.relevance}% risk`}
+                            color={getRelevanceColor(result.relevance)}
+                            size="small"
+                          />
+                        )}
                         {result.verified && (
                           <Chip label="✅ Verified" color="success" size="small" />
                         )}
@@ -227,21 +260,17 @@ const Research: React.FC = () => {
                     <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
                       {result.content.length > 200 ? result.content.substring(0, 200) + '...' : result.content}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-                      Click to view full details →
-                    </Typography>
+                    {result.id !== 'no-results' && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                        Click to view full details →
+                      </Typography>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
             ))}
           </Grid>
         </>
-      )}
-
-      {results.length === 0 && searchQuery && !loading && (
-        <Alert severity="info">
-          No results found for "{searchQuery}". Try different keywords or check if there are any alerts or collected data.
-        </Alert>
       )}
 
       {/* Detail Dialog */}
@@ -261,14 +290,16 @@ const Research: React.FC = () => {
         </DialogTitle>
         <Divider />
         <DialogContent>
-          {selectedResult && (
+          {selectedResult && selectedResult.id !== 'no-results' && (
             <Box>
               <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 2 }}>
                 <Chip label={`Source: ${selectedResult.source}`} variant="outlined" />
-                <Chip 
-                  label={`Risk Score: ${selectedResult.relevance}%`}
-                  color={getRelevanceColor(selectedResult.relevance)}
-                />
+                {selectedResult.relevance > 0 && (
+                  <Chip 
+                    label={`Risk Score: ${selectedResult.relevance}%`}
+                    color={getRelevanceColor(selectedResult.relevance)}
+                  />
+                )}
                 {selectedResult.verified && (
                   <Chip label="✅ Verified" color="success" />
                 )}
@@ -324,7 +355,7 @@ const Research: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Close</Button>
-          {selectedResult?.url && (
+          {selectedResult?.url && selectedResult.id !== 'no-results' && (
             <Button 
               component="a" 
               href={selectedResult.url} 
