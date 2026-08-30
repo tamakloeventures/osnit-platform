@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Use environment variable for API URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Hardcode the URL temporarily for testing
+const API_BASE_URL = 'https://osnit-api.onrender.com/api';
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
