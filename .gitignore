@@ -12,3 +12,8 @@ dist/
 coverage/
 .vercel/
 .render/
+*.deb
+*.exe
+*.dmg
+*.msi
+*.iso
