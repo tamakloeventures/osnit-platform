@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============ USERS ============
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(ANALYST)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reviewedAlerts Alert[]  @relation("UserReviews")
+  vetting   Vetting[]
+}
+
+// ============ PROTECTEES ============
+model Protectee {
+  id          String   @id @default(cuid())
+  name        String
+  title       String
+  status      Status   @default(ACTIVE)
+  keywords    String[]
+  locations   String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  alerts      Alert[]
+  collectedData CollectedData[]
+  monitoringConfigs MonitoringConfig[]
+  threatSearchIndex ThreatSearchIndex[]
+}
+
+// ============ ALERTS ============
+model Alert {
+  id           String      @id @default(cuid())
+  source       String
+  content      String
+  url          String?
+  riskScore    Float
+  aiConfidence Float
+  status       AlertStatus @default(PENDING)
+  analystNote  String?
+  protecteeId  String
+  protectee    Protectee   @relation(fields: [protecteeId], references: [id])
+  reviewedBy   String?
+  reviewer     User?       @relation("UserReviews", fields: [reviewedBy], references: [id])
+  isHistorical Boolean     @default(false)
+  originalDate DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  vetting      Vetting?
+  threatSearchIndex ThreatSearchIndex[]
+}
+
+// ============ COLLECTED DATA ============
+model CollectedData {
+  id          String   @id @default(cuid())
+  source      String
+  sourceId    String?
+  content     String
+  url         String?
+  author      String?
+  postedDate  DateTime
+  collectedAt DateTime @default(now())
+  protecteeId String?
+  protectee   Protectee? @relation(fields: [protecteeId], references: [id])
+  isProcessed Boolean  @default(false)
+  rawData     Json?
+  aiAnalysis  AiAnalysis?
+  threatSearchIndex ThreatSearchIndex[]
+}
+
+// ============ AI ANALYSIS ============
+model AiAnalysis {
+  id               String   @id @default(cuid())
+  collectedDataId  String   @unique
+  collectedData    CollectedData @relation(fields: [collectedDataId], references: [id])
+  sentiment        String?
+  sentimentScore   Float?
+  threatLevel      String?
+  threatScore      Float?
+  entities         Json?
+  keywords         String[]
+  riskFactors      String[]
+  summary          String?
+  analysisDate     DateTime @default(now())
+  aiModel          String?
+  confidence       Float?
+}
+
+// ============ VETTING ============
+model Vetting {
+  id              String   @id @default(cuid())
+  alertId         String   @unique
+  alert           Alert    @relation(fields: [alertId], references: [id])
+  analystId       String?
+  analyst         User?    @relation(fields: [analystId], references: [id])
+  status          VettingStatus @default(PENDING)
+  aiConfidence    Float?
+  humanDecision   String?
+  analystNotes    String?
+  reviewedAt      DateTime?
+  escalationLevel String?
+  finalRiskScore  Float?
+}
+
+// ============ MONITORING CONFIG ============
+model MonitoringConfig {
+  id          String   @id @default(cuid())
+  name        String
+  sourceType  String
+  keywords    String[]
+  protecteeId String?
+  protectee   Protectee? @relation(fields: [protecteeId], references: [id])
+  isActive    Boolean  @default(true)
+  lastRun     DateTime?
+  schedule    String?
+  config      Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============ THREAT SEARCH INDEX ============
+model ThreatSearchIndex {
+  id          String   @id @default(cuid())
+  searchableText String
+  alertId     String?
+  alert       Alert?   @relation(fields: [alertId], references: [id])
+  collectedDataId String?
+  collectedData CollectedData? @relation(fields: [collectedDataId], references: [id])
+  protecteeId String
+  protectee   Protectee @relation(fields: [protecteeId], references: [id])
+  source      String
+  date        DateTime
+  threatScore Float?
+  status      String
+  keywords    String[]
+  createdAt   DateTime @default(now())
+}
+
+// ============ ENUMS ============
+enum Role {
+  ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum AlertStatus {
+  PENDING
+  INVESTIGATING
+  CONFIRMED
+  FALSE_POSITIVE
+}
+
+enum VettingStatus {
+  PENDING
+  AI_REVIEWED
+  HUMAN_REVIEWED
+  ESCALATED
+  RESOLVED
+}

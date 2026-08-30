@@ -1,0 +1,2 @@
+-- This migration is already applied. This file exists only to satisfy Prisma's migration history.
+-- The actual schema was already applied via `prisma db push`.
