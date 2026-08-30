@@ -30,7 +30,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     try {
       console.log('Login attempt:', email);
       
-      // Check credentials
       if (email === 'partner@osnit.local' && password === 'SecurePass123!') {
         const userData = { 
           name: 'Partner Analyst', 
@@ -126,13 +125,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </form>
 
           <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
               Demo Credentials:
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
               partner@osnit.local / SecurePass123!
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block">
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
               admin@osnit.local / admin123!
             </Typography>
           </Box>
