@@ -221,7 +221,6 @@ const Dashboard: React.FC = () => {
           </Grid>
         ))}
 
-        {/* Row 2: Chart (8 cols) + Pie Chart (4 cols) - BOTH EXPAND TO FULL HEIGHT */}
         <Grid size={{ xs: 12, md: 8 }} sx={{ height: '45%' }}>
           <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -244,7 +243,6 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Pie Chart - FILLS THE ENTIRE HEIGHT (NO BLANK SPACE BELOW) */}
         <Grid size={{ xs: 12, md: 4 }} sx={{ height: '45%' }}>
           <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Alert Status</Typography>
@@ -289,7 +287,6 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Row 3: Recent Alerts (8 cols) + Protectees (4 cols) - BOTH EXPAND TO FULL HEIGHT */}
         <Grid size={{ xs: 12, md: 8 }} sx={{ height: '40%' }}>
           <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -326,7 +323,6 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Protectees - FILLS THE ENTIRE HEIGHT (NO BLANK SPACE BELOW) */}
         <Grid size={{ xs: 12, md: 4 }} sx={{ height: '40%' }}>
           <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
@@ -354,7 +350,6 @@ const Dashboard: React.FC = () => {
                             )}
                           </Box>
                         }
-                        secondaryTypographyProps={{ component: 'div' }}
                       />
                       <Chip label={protectee.status || 'ACTIVE'} size="small" color="success" />
                     </ListItem>
