@@ -14,7 +14,6 @@ import {
   ListItem,
   ListItemText,
   ListItemIcon,
-  Avatar,
 } from '@mui/material';
 import {
   LineChart,
