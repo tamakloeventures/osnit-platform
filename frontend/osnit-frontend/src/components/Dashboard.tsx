@@ -31,14 +31,12 @@ import {
 } from 'recharts';
 import { getStats, getAlerts, getProtectees } from '../services/api';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PeopleIcon from '@mui/icons-material/People';
 import { useNavigate } from 'react-router-dom';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import SecurityIcon from '@mui/icons-material/Security';
-import EventNoteIcon from '@mui/icons-material/EventNote';
 
 interface Stats {
   totalAlerts: number;
@@ -75,17 +73,19 @@ const Dashboard: React.FC = () => {
 
       // Pie chart data for alert status
       const statusCounts: Record<string, number> = {
-  PENDING: 0,
-  CONFIRMED: 0,
-  FALSE_POSITIVE: 0,
-  INVESTIGATING: 0,
-};
-alerts.forEach((alert: any) => {
-  const status = alert.status || 'PENDING';
-  if (statusCounts.hasOwnProperty(status)) {
-    statusCounts[status]++;
-  }
-});
+        PENDING: 0,
+        CONFIRMED: 0,
+        FALSE_POSITIVE: 0,
+        INVESTIGATING: 0,
+      };
+      
+      alerts.forEach((alert: any) => {
+        const status = alert.status || 'PENDING';
+        if (status in statusCounts) {
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        }
+      });
+      
       setPieData([
         { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
         { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
@@ -147,8 +147,6 @@ alerts.forEach((alert: any) => {
       bgColor: 'rgba(25, 118, 210, 0.1)',
       path: '/alerts',
       description: 'View all alerts',
-      change: '+12%',
-      trend: 'up'
     },
     { 
       title: 'Pending Review', 
@@ -158,8 +156,6 @@ alerts.forEach((alert: any) => {
       bgColor: 'rgba(255, 152, 0, 0.1)',
       path: '/alerts',
       description: 'Requires your attention',
-      change: '+5%',
-      trend: 'up'
     },
     { 
       title: 'Confirmed Threats', 
@@ -169,8 +165,6 @@ alerts.forEach((alert: any) => {
       bgColor: 'rgba(220, 0, 78, 0.1)',
       path: '/alerts',
       description: 'Verified threats',
-      change: '0%',
-      trend: 'neutral'
     },
     { 
       title: 'Active Protectees', 
@@ -180,8 +174,6 @@ alerts.forEach((alert: any) => {
       bgColor: 'rgba(76, 175, 80, 0.1)',
       path: '/protectees',
       description: 'People protected',
-      change: '+2',
-      trend: 'up'
     },
   ];
 
@@ -244,25 +236,17 @@ alerts.forEach((alert: any) => {
                     {stat.icon}
                   </Box>
                 </Box>
-                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
                   <Typography variant="caption" color="primary" sx={{ fontWeight: 600 }}>
                     Click to view →
                   </Typography>
-                  {stat.change && (
-                    <Chip 
-                      label={stat.change} 
-                      size="small" 
-                      color={stat.trend === 'up' ? 'success' : stat.trend === 'down' ? 'error' : 'default'}
-                      variant="outlined"
-                    />
-                  )}
                 </Box>
               </CardContent>
             </Card>
           </Grid>
         ))}
 
-        {/* Chart - Takes up 8 columns on large screens */}
+        {/* Chart - Takes up 8 columns */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -291,7 +275,7 @@ alerts.forEach((alert: any) => {
           </Paper>
         </Grid>
 
-        {/* Pie Chart - Takes up 4 columns on large screens (FILLS THE BLANK SPACE!) */}
+        {/* Pie Chart - Takes up 4 columns */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -308,9 +292,9 @@ alerts.forEach((alert: any) => {
                       cy="50%"
                       labelLine={false}
                       label={({ name, percent }) => {
-  const pct = percent || 0;
-  return `${name} ${(pct * 100).toFixed(0)}%`;
-}}
+                        const pct = percent || 0;
+                        return `${name} ${(pct * 100).toFixed(0)}%`;
+                      }}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
@@ -337,9 +321,6 @@ alerts.forEach((alert: any) => {
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Typography variant="body2" color="text.secondary">
                   No alerts yet
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Data will appear here when alerts are created
                 </Typography>
               </Box>
             )}
@@ -408,15 +389,12 @@ alerts.forEach((alert: any) => {
                 <Typography variant="body2" color="text.secondary">
                   No alerts yet
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Alerts will appear here when threats are detected
-                </Typography>
               </Box>
             )}
           </Paper>
         </Grid>
 
-        {/* Protectees Quick View - FILLS THE BLANK SPACE */}
+        {/* Protectees Quick View - 4 columns */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -437,10 +415,10 @@ alerts.forEach((alert: any) => {
                 {protectees.map((protectee) => (
                   <ListItem 
                     key={protectee.id}
-                    button
                     onClick={() => navigate('/protectees')}
                     sx={{ 
                       borderRadius: 1,
+                      cursor: 'pointer',
                       '&:hover': { bgcolor: 'action.hover' }
                     }}
                   >
