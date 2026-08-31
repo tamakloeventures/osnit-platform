@@ -70,7 +70,6 @@ const Dashboard: React.FC = () => {
       const alerts = alertsRes.data || [];
       setRecentAlerts(alerts.slice(0, 5));
 
-      // Pie chart data for alert status
       const statusCounts: Record<string, number> = {
         PENDING: 0,
         CONFIRMED: 0,
@@ -94,7 +93,6 @@ const Dashboard: React.FC = () => {
 
       setProtectees(protecteesRes.data || []);
 
-      // Chart data for last 7 days
       const last7Days = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
@@ -245,7 +243,7 @@ const Dashboard: React.FC = () => {
           </Grid>
         ))}
 
-        {/* Chart - Takes up 8 columns */}
+        {/* Row 1: Chart (8 cols) + Pie Chart (4 cols) - FILLS THE BLANK SPACE */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -274,16 +272,16 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Pie Chart - Takes up 4 columns */}
+        {/* Pie Chart - FILLS THE BLANK SPACE ON THE RIGHT */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Paper sx={{ p: 3, height: '100%' }}>
+          <Paper sx={{ p: 3, height: '100%', minHeight: 380 }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
               Alert Status Distribution
             </Typography>
             <Divider sx={{ mb: 2 }} />
             {pieData.length > 0 ? (
               <>
-                <ResponsiveContainer width="100%" height={200}>
+                <ResponsiveContainer width="100%" height={220}>
                   <PieChart>
                     <Pie
                       data={pieData}
@@ -326,7 +324,7 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Recent Alerts - 8 columns */}
+        {/* Row 2: Recent Alerts (8 cols) + Protectees (4 cols) - BOTH SIDE BY SIDE */}
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -393,7 +391,7 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Protectees Quick View - 4 columns */}
+        {/* Protectees - SIDE BY SIDE WITH RECENT ALERTS */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ p: 3, height: '100%' }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
