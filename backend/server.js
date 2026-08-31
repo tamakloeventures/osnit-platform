@@ -320,6 +320,70 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+// ============ DATA SOURCE ROUTES ============
+const dataSourceService = require('./services/dataSourceService');
+
+// PEP Screening
+app.get('/api/intelligence/pep/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { country } = req.query;
+    const results = await dataSourceService.searchPEP(name, country);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Full Intelligence Scan
+app.post('/api/intelligence/scan', async (req, res) => {
+  try {
+    const { protecteeId, protecteeName, keywords } = req.body;
+    const results = await dataSourceService.runFullIntelligenceScan(
+      protecteeName,
+      protecteeId,
+      keywords || [protecteeName]
+    );
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// News Collection
+app.post('/api/intelligence/news', async (req, res) => {
+  try {
+    const { keywords, protecteeId } = req.body;
+    const results = await dataSourceService.collectNews(keywords, protecteeId);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Corporate Registry
+app.get('/api/intelligence/corporate/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const results = await dataSourceService.searchCorporateRegistry(name);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Campaign Finance
+app.get('/api/intelligence/campaign/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const { year } = req.query;
+    const results = await dataSourceService.searchCampaignFinance(name, year);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============ START SERVER ============
 const PORT = process.env.PORT || 5000;
 

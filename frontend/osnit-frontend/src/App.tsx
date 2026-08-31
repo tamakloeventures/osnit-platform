@@ -12,16 +12,9 @@ import Login from './components/Login';
 const theme = createTheme({
   palette: {
     mode: 'dark',
-    primary: {
-      main: '#1976d2',
-    },
-    secondary: {
-      main: '#dc004e',
-    },
-    background: {
-      default: '#0a1929',
-      paper: '#132f4c',
-    },
+    primary: { main: '#1976d2' },
+    secondary: { main: '#dc004e' },
+    background: { default: '#0a1929', paper: '#132f4c' },
   },
 });
 
@@ -29,7 +22,7 @@ function App() {
   const [user, setUser] = useState<any>(null);
 
   const handleLogin = (userData: any) => {
-    console.log('Login successful:', userData);
+    console.log('Login success:', userData);
     setUser(userData);
   };
 
@@ -37,8 +30,6 @@ function App() {
     console.log('Logout clicked');
     setUser(null);
   };
-
-  console.log('App state - user:', user);
 
   return (
     <ThemeProvider theme={theme}>
