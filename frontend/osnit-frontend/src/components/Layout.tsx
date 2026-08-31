@@ -20,6 +20,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const drawerWidth = 260;
 
@@ -35,15 +36,23 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
+  };
+
+  const handleMenuClick = (path: string) => {
+    navigate(path);
+    setMobileOpen(false);
   };
 
   const handleLogout = () => {
     if (onLogout) {
       onLogout();
     }
+    navigate('/');
   };
 
   const menuItems = [
@@ -52,6 +61,11 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     { text: 'Protectees', icon: <PersonIcon />, path: '/protectees' },
     { text: 'Research', icon: <SearchIcon />, path: '/research' },
   ];
+
+  const isSelected = (path: string) => {
+    if (path === '/') return location.pathname === '/' || location.pathname === '/dashboard';
+    return location.pathname === path;
+  };
 
   const drawer = (
     <Box>
@@ -64,12 +78,30 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
       <List>
         {menuItems.map((item) => (
           <ListItem key={item.text} disablePadding>
-            <a href={item.path} style={{ textDecoration: 'none', color: 'inherit', width: '100%' }}>
-              <ListItemButton>
-                <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.text} />
-              </ListItemButton>
-            </a>
+            <ListItemButton
+              selected={isSelected(item.path)}
+              onClick={() => handleMenuClick(item.path)}
+              sx={{
+                '&.Mui-selected': {
+                  bgcolor: 'primary.main',
+                  color: 'white',
+                  '&:hover': {
+                    bgcolor: 'primary.dark',
+                  },
+                  '& .MuiListItemIcon-root': {
+                    color: 'white',
+                  },
+                },
+                '&:hover': {
+                  bgcolor: 'action.hover',
+                },
+                mx: 1,
+                borderRadius: 1,
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItemButton>
           </ListItem>
         ))}
       </List>
@@ -141,7 +173,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
         {drawer}
       </Drawer>
 
-      {/* MAIN CONTENT - NO EXTRA SPACE ON THE LEFT */}
       <Box
         component="main"
         sx={{
