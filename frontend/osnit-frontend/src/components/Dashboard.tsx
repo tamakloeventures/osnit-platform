@@ -28,7 +28,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { getDashboardData, getStats, getAlerts, getProtectees } from '../services/api';
+import { getAlerts, getProtectees, getStats } from '../services/api';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -45,19 +45,6 @@ interface Stats {
   totalProtectees: number;
 }
 
-interface DashboardData {
-  stats: Stats;
-  recentAlerts: any[];
-  chartData: Array<{ date: string; alerts: number }>;
-  pieData: Array<{ name: string; value: number; color: string }>;
-  protectees: any[];
-  responseTime?: number;
-}
-
-let cachedData: DashboardData | null = null;
-let cacheTime = 0;
-const CACHE_DURATION = 30000;
-
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,86 +59,59 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const fetchData = async () => {
-    const now = Date.now();
-    if (cachedData && (now - cacheTime) < CACHE_DURATION) {
-      const data = cachedData;
-      setStats(data.stats);
-      setRecentAlerts(data.recentAlerts);
-      setChartData(data.chartData);
-      setPieData(data.pieData);
-      setProtectees(data.protectees);
-      setLoading(false);
-      return;
-    }
-
     try {
-      let data: DashboardData;
-      try {
-        const response = await getDashboardData();
-        data = response.data;
-        console.log('Dashboard data loaded from combined endpoint');
-      } catch (combinedError) {
-        console.warn('Combined endpoint failed, using individual calls...');
-        const [statsRes, alertsRes, protecteesRes] = await Promise.all([
-          getStats(),
-          getAlerts(),
-          getProtectees(),
-        ]);
-        
-        const stats = statsRes.data;
-        const alerts = alertsRes.data || [];
-        
-        const last7Days: string[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          last7Days.push(date.toISOString().split('T')[0]);
-        }
-        
-        const chartData: Array<{ date: string; alerts: number }> = last7Days.map((date) => {
-          const count = alerts.filter((alert: any) =>
-            alert.createdAt?.startsWith(date)
-          ).length;
-          return { date, alerts: count };
-        });
+      // Fetch all data in parallel
+      const [statsRes, alertsRes, protecteesRes] = await Promise.all([
+        getStats(),
+        getAlerts(),
+        getProtectees(),
+      ]);
 
-        const statusCounts: Record<string, number> = {
-          PENDING: 0,
-          CONFIRMED: 0,
-          FALSE_POSITIVE: 0,
-          INVESTIGATING: 0,
-        };
-        alerts.forEach((alert: any) => {
-          const status = alert.status || 'PENDING';
-          if (status in statusCounts) {
-            statusCounts[status] = (statusCounts[status] || 0) + 1;
-          }
-        });
-        
-        const pieData: Array<{ name: string; value: number; color: string }> = [
-          { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
-          { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
-          { name: 'False Positive', value: statusCounts.FALSE_POSITIVE, color: '#4caf50' },
-          { name: 'Investigating', value: statusCounts.INVESTIGATING, color: '#1976d2' },
-        ].filter(item => item.value > 0);
+      const stats = statsRes.data;
+      const alerts = alertsRes.data || [];
+      const protecteesData = protecteesRes.data || [];
 
-        data = {
-          stats: stats,
-          recentAlerts: alerts.slice(0, 5),
-          chartData: chartData,
-          pieData: pieData,
-          protectees: protecteesRes.data || [],
-          responseTime: 0,
-        };
+      // Build chart data (last 7 days)
+      const last7Days: string[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        last7Days.push(date.toISOString().split('T')[0]);
       }
-      
-      cachedData = data;
-      cacheTime = Date.now();
-      setStats(data.stats);
-      setRecentAlerts(data.recentAlerts || []);
-      setChartData(data.chartData || []);
-      setPieData(data.pieData || []);
-      setProtectees(data.protectees || []);
+
+      const chartData: Array<{ date: string; alerts: number }> = last7Days.map((date) => {
+        const count = alerts.filter((alert: any) =>
+          alert.createdAt?.startsWith(date)
+        ).length;
+        return { date, alerts: count };
+      });
+
+      // Build pie data
+      const statusCounts: Record<string, number> = {
+        PENDING: 0,
+        CONFIRMED: 0,
+        FALSE_POSITIVE: 0,
+        INVESTIGATING: 0,
+      };
+      alerts.forEach((alert: any) => {
+        const status = alert.status || 'PENDING';
+        if (status in statusCounts) {
+          statusCounts[status] = (statusCounts[status] || 0) + 1;
+        }
+      });
+
+      const pieData: Array<{ name: string; value: number; color: string }> = [
+        { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
+        { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
+        { name: 'False Positive', value: statusCounts.FALSE_POSITIVE, color: '#4caf50' },
+        { name: 'Investigating', value: statusCounts.INVESTIGATING, color: '#1976d2' },
+      ].filter(item => item.value > 0);
+
+      setStats(stats);
+      setRecentAlerts(alerts.slice(0, 5));
+      setChartData(chartData);
+      setPieData(pieData);
+      setProtectees(protecteesData);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -175,7 +135,7 @@ const Dashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
       </Box>
     );
@@ -221,7 +181,7 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <Box sx={{ height: '100%' }}>
+    <Box>
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" sx={{ fontWeight: 600 }}>
@@ -234,16 +194,13 @@ const Dashboard: React.FC = () => {
         <Button 
           variant="outlined" 
           size="small"
-          onClick={() => {
-            cachedData = null;
-            window.location.reload();
-          }}
+          onClick={() => window.location.reload()}
         >
           Refresh Data
         </Button>
       </Box>
 
-      <Grid container spacing={3} sx={{ height: 'calc(100vh - 200px)', minHeight: 600 }}>
+      <Grid container spacing={3}>
         {statCards.map((stat) => (
           <Grid key={stat.title} size={{ xs: 12, sm: 6, md: 3 }}>
             <Card 
@@ -255,9 +212,6 @@ const Dashboard: React.FC = () => {
                   transform: 'translateY(-4px)',
                   boxShadow: 8,
                 },
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
               }}
               onClick={() => handleCardClick(stat.path)}
             >
@@ -288,14 +242,14 @@ const Dashboard: React.FC = () => {
           </Grid>
         ))}
 
-        <Grid size={{ xs: 12, md: 8 }} sx={{ height: '45%' }}>
-          <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Grid size={{ xs: 12, md: 8 }}>
+          <Paper sx={{ p: 3, height: 350 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>Alert Trend</Typography>
               <Chip label="Last 7 Days" size="small" />
             </Box>
             <Divider sx={{ mb: 1 }} />
-            <Box sx={{ flex: 1, minHeight: 0 }}>
+            <Box sx={{ height: 250 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
@@ -310,13 +264,13 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }} sx={{ height: '45%' }}>
-          <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Paper sx={{ p: 3, height: 350 }}>
             <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>Alert Status</Typography>
             <Divider sx={{ mb: 1 }} />
             {pieData.length > 0 ? (
-              <>
-                <Box sx={{ flex: 1, minHeight: 0 }}>
+              <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <Box sx={{ height: 180 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -328,7 +282,7 @@ const Dashboard: React.FC = () => {
                           const pct = percent || 0;
                           return `${name} ${(pct * 100).toFixed(0)}%`;
                         }}
-                        outerRadius="80%"
+                        outerRadius={70}
                         fill="#8884d8"
                         dataKey="value"
                       >
@@ -340,12 +294,12 @@ const Dashboard: React.FC = () => {
                     </PieChart>
                   </ResponsiveContainer>
                 </Box>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center', mt: 0.5 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, justifyContent: 'center', mt: 1 }}>
                   {pieData.map((item) => (
                     <Chip key={item.name} label={`${item.name}: ${item.value}`} size="small" sx={{ bgcolor: item.color, color: '#fff' }} />
                   ))}
                 </Box>
-              </>
+              </Box>
             ) : (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Typography variant="body2" color="text.secondary">No alerts yet</Typography>
@@ -354,14 +308,14 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 8 }} sx={{ height: '40%' }}>
-          <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Grid size={{ xs: 12, md: 8 }}>
+          <Paper sx={{ p: 3, height: 350 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>Recent Alerts</Typography>
               <Button size="small" color="primary" onClick={() => navigate('/alerts')}>View All</Button>
             </Box>
             <Divider sx={{ mb: 1 }} />
-            <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <Box sx={{ height: 250, overflow: 'auto' }}>
               {recentAlerts.length > 0 ? (
                 recentAlerts.map((alert, index) => (
                   <Box key={index} sx={{ mb: 1.5 }}>
@@ -390,14 +344,14 @@ const Dashboard: React.FC = () => {
           </Paper>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 4 }} sx={{ height: '40%' }}>
-          <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Paper sx={{ p: 3, height: 350 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="h6" sx={{ fontWeight: 600 }}>Active Protectees</Typography>
               <Button size="small" color="primary" onClick={() => navigate('/protectees')}>View All</Button>
             </Box>
             <Divider sx={{ mb: 1 }} />
-            <Box sx={{ flex: 1, overflow: 'auto' }}>
+            <Box sx={{ height: 250, overflow: 'auto' }}>
               {protectees.length > 0 ? (
                 <List dense sx={{ p: 0 }}>
                   {protectees.map((protectee) => (
