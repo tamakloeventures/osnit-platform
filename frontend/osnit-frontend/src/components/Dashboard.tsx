@@ -28,7 +28,7 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { getDashboardData } from '../services/api';
+import { getDashboardData, getStats, getAlerts, getProtectees } from '../services/api';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import WarningIcon from '@mui/icons-material/Warning';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -59,100 +59,88 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchData = async () => {
-  const now = Date.now();
-  if (cachedData && (now - cacheTime) < CACHE_DURATION) {
-    const data = cachedData;
-    setStats(data.stats);
-    setRecentAlerts(data.recentAlerts);
-    setChartData(data.chartData);
-    setPieData(data.pieData);
-    setProtectees(data.protectees);
-    setLoading(false);
-    return;
-  }
+    fetchData();
+  }, []);
 
-  try {
-    let data;
-    try {
-      // Try the combined endpoint first
-      const response = await getDashboardData();
-      data = response.data;
-      console.log('✅ Dashboard data loaded from combined endpoint');
-    } catch (combinedError) {
-      console.warn('⚠️ Combined endpoint failed, using individual calls...');
-      // Fallback to individual API calls
-      const [statsRes, alertsRes, protecteesRes] = await Promise.all([
-        getStats(),
-        getAlerts(),
-        getProtectees(),
-      ]);
-      
-      const stats = statsRes.data;
-      const alerts = alertsRes.data || [];
-      
-      // Build data structure manually
-      data = {
-        stats: stats,
-        recentAlerts: alerts.slice(0, 5),
-        chartData: [],
-        pieData: [],
-        protectees: protecteesRes.data || [],
-        responseTime: 0,
-      };
-
-      // Build chart data
-      const last7Days = [];
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        last7Days.push(date.toISOString().split('T')[0]);
-      }
-      data.chartData = last7Days.map((date) => {
-        const count = alerts.filter((alert: any) =>
-          alert.createdAt?.startsWith(date)
-        ).length;
-        return { date, alerts: count };
-      });
-
-      // Build pie data
-      const statusCounts = { PENDING: 0, CONFIRMED: 0, FALSE_POSITIVE: 0, INVESTIGATING: 0 };
-      alerts.forEach((alert: any) => {
-        const status = alert.status || 'PENDING';
-        if (status in statusCounts) statusCounts[status as keyof typeof statusCounts]++;
-      });
-      data.pieData = [
-        { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
-        { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
-        { name: 'False Positive', value: statusCounts.FALSE_POSITIVE, color: '#4caf50' },
-        { name: 'Investigating', value: statusCounts.INVESTIGATING, color: '#1976d2' },
-      ].filter(item => item.value > 0);
-    }
-    
-    cachedData = data;
-    cacheTime = Date.now();
-    setStats(data.stats);
-    setRecentAlerts(data.recentAlerts || []);
-    setChartData(data.chartData || []);
-    setPieData(data.pieData || []);
-    setProtectees(data.protectees || []);
-  } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-  } finally {
-    setLoading(false);
-  }
-};
-
-    try {
-      const response = await getDashboardData();
-      const data = response.data;
-      cachedData = data;
-      cacheTime = Date.now();
+  const fetchData = async () => {
+    const now = Date.now();
+    if (cachedData && (now - cacheTime) < CACHE_DURATION) {
+      const data = cachedData;
       setStats(data.stats);
       setRecentAlerts(data.recentAlerts);
       setChartData(data.chartData);
       setPieData(data.pieData);
       setProtectees(data.protectees);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      let data;
+      try {
+        const response = await getDashboardData();
+        data = response.data;
+        console.log('Dashboard data loaded from combined endpoint');
+      } catch (combinedError) {
+        console.warn('Combined endpoint failed, using individual calls...');
+        const [statsRes, alertsRes, protecteesRes] = await Promise.all([
+          getStats(),
+          getAlerts(),
+          getProtectees(),
+        ]);
+        
+        const stats = statsRes.data;
+        const alerts = alertsRes.data || [];
+        
+        data = {
+          stats: stats,
+          recentAlerts: alerts.slice(0, 5),
+          chartData: [],
+          pieData: [],
+          protectees: protecteesRes.data || [],
+          responseTime: 0,
+        };
+
+        const last7Days = [];
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          last7Days.push(date.toISOString().split('T')[0]);
+        }
+        data.chartData = last7Days.map((date) => {
+          const count = alerts.filter((alert: any) =>
+            alert.createdAt?.startsWith(date)
+          ).length;
+          return { date, alerts: count };
+        });
+
+        const statusCounts: Record<string, number> = {
+          PENDING: 0,
+          CONFIRMED: 0,
+          FALSE_POSITIVE: 0,
+          INVESTIGATING: 0,
+        };
+        alerts.forEach((alert: any) => {
+          const status = alert.status || 'PENDING';
+          if (status in statusCounts) {
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+          }
+        });
+        data.pieData = [
+          { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
+          { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
+          { name: 'False Positive', value: statusCounts.FALSE_POSITIVE, color: '#4caf50' },
+          { name: 'Investigating', value: statusCounts.INVESTIGATING, color: '#1976d2' },
+        ].filter(item => item.value > 0);
+      }
+      
+      cachedData = data;
+      cacheTime = Date.now();
+      setStats(data.stats);
+      setRecentAlerts(data.recentAlerts || []);
+      setChartData(data.chartData || []);
+      setPieData(data.pieData || []);
+      setProtectees(data.protectees || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
