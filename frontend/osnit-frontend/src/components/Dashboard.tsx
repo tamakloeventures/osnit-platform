@@ -45,17 +45,26 @@ interface Stats {
   totalProtectees: number;
 }
 
-let cachedData: any = null;
+interface DashboardData {
+  stats: Stats;
+  recentAlerts: any[];
+  chartData: Array<{ date: string; alerts: number }>;
+  pieData: Array<{ name: string; value: number; color: string }>;
+  protectees: any[];
+  responseTime?: number;
+}
+
+let cachedData: DashboardData | null = null;
 let cacheTime = 0;
 const CACHE_DURATION = 30000;
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<Array<{ date: string; alerts: number }>>([]);
   const [recentAlerts, setRecentAlerts] = useState<any[]>([]);
   const [protectees, setProtectees] = useState<any[]>([]);
-  const [pieData, setPieData] = useState<any[]>([]);
+  const [pieData, setPieData] = useState<Array<{ name: string; value: number; color: string }>>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -76,7 +85,7 @@ const Dashboard: React.FC = () => {
     }
 
     try {
-      let data;
+      let data: DashboardData;
       try {
         const response = await getDashboardData();
         data = response.data;
@@ -92,22 +101,14 @@ const Dashboard: React.FC = () => {
         const stats = statsRes.data;
         const alerts = alertsRes.data || [];
         
-        data = {
-          stats: stats,
-          recentAlerts: alerts.slice(0, 5),
-          chartData: [],
-          pieData: [],
-          protectees: protecteesRes.data || [],
-          responseTime: 0,
-        };
-
-        const last7Days = [];
+        const last7Days: string[] = [];
         for (let i = 6; i >= 0; i--) {
           const date = new Date();
           date.setDate(date.getDate() - i);
           last7Days.push(date.toISOString().split('T')[0]);
         }
-        data.chartData = last7Days.map((date) => {
+        
+        const chartData: Array<{ date: string; alerts: number }> = last7Days.map((date) => {
           const count = alerts.filter((alert: any) =>
             alert.createdAt?.startsWith(date)
           ).length;
@@ -126,12 +127,22 @@ const Dashboard: React.FC = () => {
             statusCounts[status] = (statusCounts[status] || 0) + 1;
           }
         });
-        data.pieData = [
+        
+        const pieData: Array<{ name: string; value: number; color: string }> = [
           { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
           { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
           { name: 'False Positive', value: statusCounts.FALSE_POSITIVE, color: '#4caf50' },
           { name: 'Investigating', value: statusCounts.INVESTIGATING, color: '#1976d2' },
         ].filter(item => item.value > 0);
+
+        data = {
+          stats: stats,
+          recentAlerts: alerts.slice(0, 5),
+          chartData: chartData,
+          pieData: pieData,
+          protectees: protecteesRes.data || [],
+          responseTime: 0,
+        };
       }
       
       cachedData = data;
