@@ -74,17 +74,18 @@ const Dashboard: React.FC = () => {
       setRecentAlerts(alerts.slice(0, 5));
 
       // Pie chart data for alert status
-      const statusCounts = {
-        PENDING: 0,
-        CONFIRMED: 0,
-        FALSE_POSITIVE: 0,
-        INVESTIGATING: 0,
-      };
-      alerts.forEach((alert: any) => {
-        if (statusCounts.hasOwnProperty(alert.status)) {
-          statusCounts[alert.status]++;
-        }
-      });
+      const statusCounts: Record<string, number> = {
+  PENDING: 0,
+  CONFIRMED: 0,
+  FALSE_POSITIVE: 0,
+  INVESTIGATING: 0,
+};
+alerts.forEach((alert: any) => {
+  const status = alert.status || 'PENDING';
+  if (statusCounts.hasOwnProperty(status)) {
+    statusCounts[status]++;
+  }
+});
       setPieData([
         { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
         { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
