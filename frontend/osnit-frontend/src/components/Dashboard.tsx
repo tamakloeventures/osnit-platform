@@ -58,9 +58,10 @@ const Dashboard: React.FC = () => {
     fetchData();
   }, []);
 
-  const fetchData = async () => {
+    const fetchData = async () => {
+    setLoading(true);
     try {
-      // Fetch all data in parallel
+      // Fetch all data in PARALLEL (this is the key change)
       const [statsRes, alertsRes, protecteesRes] = await Promise.all([
         getStats(),
         getAlerts(),
@@ -71,22 +72,23 @@ const Dashboard: React.FC = () => {
       const alerts = alertsRes.data || [];
       const protecteesData = protecteesRes.data || [];
 
-      // Build chart data (last 7 days)
-      const last7Days: string[] = [];
+      // Update stats IMMEDIATELY
+      setStats(stats);
+
+      // Process chart and pie data (but don't block rendering)
+      const last7Days = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
         date.setDate(date.getDate() - i);
         last7Days.push(date.toISOString().split('T')[0]);
       }
-
-      const chartData: Array<{ date: string; alerts: number }> = last7Days.map((date) => {
+      const chartData = last7Days.map((date) => {
         const count = alerts.filter((alert: any) =>
           alert.createdAt?.startsWith(date)
         ).length;
         return { date, alerts: count };
       });
 
-      // Build pie data
       const statusCounts: Record<string, number> = {
         PENDING: 0,
         CONFIRMED: 0,
@@ -99,25 +101,26 @@ const Dashboard: React.FC = () => {
           statusCounts[status] = (statusCounts[status] || 0) + 1;
         }
       });
-
-      const pieData: Array<{ name: string; value: number; color: string }> = [
+      const pieData = [
         { name: 'Pending', value: statusCounts.PENDING, color: '#ff9800' },
         { name: 'Confirmed', value: statusCounts.CONFIRMED, color: '#dc004e' },
         { name: 'False Positive', value: statusCounts.FALSE_POSITIVE, color: '#4caf50' },
         { name: 'Investigating', value: statusCounts.INVESTIGATING, color: '#1976d2' },
       ].filter(item => item.value > 0);
 
-      setStats(stats);
+      // Set remaining data
       setRecentAlerts(alerts.slice(0, 5));
       setChartData(chartData);
       setPieData(pieData);
       setProtectees(protecteesData);
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
   };
+  
 
   const handleCardClick = (path: string) => {
     navigate(path);
