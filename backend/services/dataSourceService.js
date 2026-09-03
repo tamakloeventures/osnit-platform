@@ -1,8 +1,22 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { PrismaClient } = require('@prisma/client');
+// Use the global Prisma instance or create one with adapter
+let prisma;
+try {
+  prisma = global.prisma;
+  if (!prisma) {
+    const { PrismaClient } = require('@prisma/client');
+    const { PrismaPg } = require('@prisma/adapter-pg');
+    const adapter = new PrismaPg({
+      connectionString: process.env.DATABASE_URL,
+    });
+    prisma = new PrismaClient({ adapter });
+  }
+} catch (error) {
+  console.error('Prisma initialization error:', error);
+  const { PrismaClient } = require('@prisma/client');
+  prisma = new PrismaClient();
+}
 
-const prisma = new PrismaClient();
+const axios = require('axios');
 
 class DataSourceService {
   constructor() {
@@ -30,7 +44,6 @@ class DataSourceService {
   async searchPEP(name, country) {
     const results = [];
 
-    // 1. Check OpenSanctions (free)
     try {
       const response = await axios.get(`https://api.opensanctions.org/search/default?q=${encodeURIComponent(name)}`);
       if (response.data.results) {
@@ -52,22 +65,6 @@ class DataSourceService {
       console.log('⚠️ OpenSanctions API error (may require API key)');
     }
 
-    // 2. Check Wikidata (free)
-    try {
-      const query = `
-        SELECT ?item ?itemLabel ?description WHERE {
-          ?item wdt:P31 wd:Q5.
-          ?item rdfs:label "${name}"@en.
-          OPTIONAL { ?item schema:description ?description. }
-          SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
-        } LIMIT 10
-      `;
-      // In production, use proper SPARQL endpoint
-    } catch (error) {
-      console.log('⚠️ Wikidata query error');
-    }
-
-    // 3. Check OCCRP Aleph (if API key available)
     if (this.sources.aleph.enabled) {
       try {
         const response = await axios.get(`${this.sources.aleph.baseUrl}entities?q=${encodeURIComponent(name)}&schema=Person`, {
@@ -98,13 +95,12 @@ class DataSourceService {
   async searchCampaignFinance(candidateName, year = 2024) {
     const results = [];
 
-    // OpenSecrets API (requires API key)
     if (this.sources.openSecrets.enabled) {
       try {
         const response = await axios.get(`${this.sources.openSecrets.baseUrl}`, {
           params: {
             method: 'candidateSummary',
-            cid: candidateName, // Would need to map name to CID
+            cid: candidateName,
             apikey: this.sources.openSecrets.apiKey,
             output: 'json'
           }
@@ -132,7 +128,6 @@ class DataSourceService {
     const results = [];
     
     try {
-      // RSS feeds from major news sources
       const feeds = [
         'https://feeds.bbci.co.uk/news/world/rss.xml',
         'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
@@ -150,7 +145,6 @@ class DataSourceService {
             const title = item.title || '';
             const content = (item.contentSnippet || item.content || '');
             
-            // Check if any keyword matches
             const matchesKeyword = keywords.some(kw => 
               title.toLowerCase().includes(kw.toLowerCase()) || 
               content.toLowerCase().includes(kw.toLowerCase())
@@ -182,7 +176,6 @@ class DataSourceService {
   async collectSocialMedia(keywords, protecteeId) {
     const results = [];
 
-    // Twitter/X (requires API key)
     if (process.env.TWITTER_BEARER_TOKEN) {
       try {
         const TwitterApi = require('twitter-api-v2');
@@ -219,7 +212,6 @@ class DataSourceService {
   async searchCorporateRegistry(name) {
     const results = [];
 
-    // OpenCorporates API (requires API key)
     if (process.env.OPENCORPORATES_API_KEY) {
       try {
         const response = await axios.get(`https://api.opencorporates.com/v0.4/companies/search`, {
@@ -261,26 +253,15 @@ class DataSourceService {
     };
 
     try {
-      // 1. PEP Screening
       results.pep = await this.searchPEP(protecteeName);
-
-      // 2. News Collection
       results.news = await this.collectNews(keywords, protecteeId);
-
-      // 3. Social Media
       results.social = await this.collectSocialMedia(keywords, protecteeId);
-
-      // 4. Corporate Registry
       results.corporate = await this.searchCorporateRegistry(protecteeName);
-
-      // 5. Campaign Finance
       results.campaign = await this.searchCampaignFinance(protecteeName);
 
       console.log(`✅ Scan complete: ${results.pep.length} PEPs, ${results.news.length} news, ${results.social.length} social`);
 
-      // Store results in database
       await this.storeScanResults(protecteeId, results);
-
       return results;
     } catch (error) {
       console.error('Full scan error:', error);
@@ -291,10 +272,8 @@ class DataSourceService {
   // ============ STORE SCAN RESULTS ============
   async storeScanResults(protecteeId, results) {
     try {
-      // Store as collected data entries
       const entries = [];
 
-      // Store PEP results
       results.pep.forEach(pep => {
         entries.push({
           source: pep.source,
@@ -306,7 +285,6 @@ class DataSourceService {
         });
       });
 
-      // Store news results
       results.news.forEach(news => {
         entries.push({
           source: 'News',
@@ -319,7 +297,6 @@ class DataSourceService {
         });
       });
 
-      // Store social media results
       results.social.forEach(social => {
         entries.push({
           source: social.source,
@@ -332,7 +309,6 @@ class DataSourceService {
         });
       });
 
-      // Store corporate results
       results.corporate.forEach(corp => {
         entries.push({
           source: 'Corporate Registry',
@@ -345,7 +321,6 @@ class DataSourceService {
         });
       });
 
-      // Store in database
       for (const entry of entries) {
         await prisma.collectedData.create({
           data: entry
