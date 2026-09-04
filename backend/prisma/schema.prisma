@@ -55,6 +55,13 @@ model Alert {
   updatedAt    DateTime    @updatedAt
   vetting      Vetting?
   threatSearchIndex ThreatSearchIndex[]
+  
+  // ADD THESE NEW FIELDS
+  author       String?     // Who posted the threat
+  location     String?     // Where the threat came from
+  platform     String?     // Social media platform
+  createdBy    String?     @default("System")  // Who created the alert
+  sourceUrl    String?     // Original source URL
 }
 
 // ============ COLLECTED DATA ============

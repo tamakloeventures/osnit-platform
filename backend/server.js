@@ -69,12 +69,37 @@ app.get('/api/alerts', async (req, res) => {
 
 app.post('/api/alerts', async (req, res) => {
   try {
-    const { source, content, url, riskScore, protecteeId } = req.body;
+    const { 
+      source, 
+      content, 
+      url, 
+      riskScore, 
+      protecteeId,
+      author,
+      location,
+      platform,
+      createdBy
+    } = req.body;
+    
     const alert = await prisma.alert.create({
-      data: { source, content, url, riskScore, aiConfidence: 0.75, status: 'PENDING', protecteeId },
+      data: {
+        source,
+        content,
+        url,
+        riskScore: riskScore || 50,
+        aiConfidence: 0.75,
+        status: 'PENDING',
+        protecteeId,
+        author: author || 'Unknown',
+        location: location || 'Unknown',
+        platform: platform || source,
+        createdBy: createdBy || 'System',
+        sourceUrl: url,
+      },
     });
     res.json(alert);
   } catch (error) {
+    console.error('Create alert error:', error);
     res.status(500).json({ error: error.message });
   }
 });
