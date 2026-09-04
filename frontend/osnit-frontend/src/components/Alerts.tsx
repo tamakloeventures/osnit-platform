@@ -32,6 +32,11 @@ interface Alert {
     name: string;
   };
   createdAt: string;
+  author?: string;
+  location?: string;
+  platform?: string;
+  createdBy?: string;
+  sourceUrl?: string;
 }
 
 const Alerts: React.FC = () => {
