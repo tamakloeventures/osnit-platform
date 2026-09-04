@@ -14,16 +14,10 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   TextField,
   CircularProgress,
-  Tooltip,
-  IconButton,
 } from '@mui/material';
 import { getAlerts, updateAlert } from '../services/api';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import PersonIcon from '@mui/icons-material/Person';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
 
 interface Alert {
   id: string;
