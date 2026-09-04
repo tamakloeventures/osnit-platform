@@ -175,6 +175,12 @@ const Alerts: React.FC = () => {
                 Source: {selectedAlert.source}
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
+                Author: {selectedAlert.author || 'Unknown'}
+              </Typography>
+              <Typography variant="subtitle2" color="text.secondary">
+                Location: {selectedAlert.location || 'Unknown'}
+              </Typography>
+              <Typography variant="subtitle2" color="text.secondary">
                 Protectee: {selectedAlert.protectee?.name || 'Unknown'}
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
