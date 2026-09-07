@@ -170,6 +170,7 @@ const Alerts: React.FC = () => {
         </Table>
       </TableContainer>
 
+      {/* REVIEW ALERT DIALOG */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Review Alert</DialogTitle>
         <DialogContent>
@@ -179,10 +180,10 @@ const Alerts: React.FC = () => {
                 Source: {selectedAlert.source}
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
-                Author: {selectedAlert.author || 'Unknown'}
+                Author: {selectedAlert.author ?? 'Not available'}
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
-                Location: {selectedAlert.location || 'Unknown'}
+                Location: {selectedAlert.location ?? 'Not available'}
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
                 Protectee: {selectedAlert.protectee?.name || 'Unknown'}
@@ -193,6 +194,18 @@ const Alerts: React.FC = () => {
               <Paper sx={{ p: 2, mt: 2, bgcolor: 'background.default' }}>
                 <Typography>{selectedAlert.content}</Typography>
               </Paper>
+<Typography variant="subtitle2" color="text.secondary">
+  Source: {selectedAlert.source}
+</Typography>
+<Typography variant="subtitle2" color="text.secondary">
+  Author: {selectedAlert.author ?? 'Not available'}   // <-- ADD THIS
+</Typography>
+<Typography variant="subtitle2" color="text.secondary">
+  Location: {selectedAlert.location ?? 'Not available'} // <-- ADD THIS
+</Typography>
+<Typography variant="subtitle2" color="text.secondary">
+  Protectee: {selectedAlert.protectee?.name || 'Unknown'}
+</Typography>
               <TextField
                 fullWidth
                 multiline
