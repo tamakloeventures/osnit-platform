@@ -414,6 +414,28 @@ const PORT = process.env.PORT || 5000;
 
 // Start scheduled collection
 collectionService.startScheduledCollection();
+// TEMPORARY DEBUG: Check if author/location are being saved
+app.get('/api/debug', async (req, res) => {
+  try {
+    const latest = await prisma.alert.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        source: true,
+        content: true,
+        author: true,
+        location: true,
+        createdAt: true,
+      }
+    });
+    res.json({
+      latestAlert: latest,
+      serverTime: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`🚀 OSNIT Backend running on port ${PORT}`);
