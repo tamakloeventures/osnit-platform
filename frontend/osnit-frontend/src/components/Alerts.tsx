@@ -134,15 +134,15 @@ const Alerts: React.FC = () => {
                   </TableCell>
                   <TableCell>{alert.protectee?.name || 'Unknown'}</TableCell>
                   <TableCell>
-                    <Chip 
-                      label={`${alert.riskScore || 0}%`} 
+                    <Chip
+                      label={`${alert.riskScore || 0}%`}
                       color={getRiskColor(alert.riskScore || 0)}
                       size="small"
                     />
                   </TableCell>
                   <TableCell>
-                    <Chip 
-                      label={alert.status} 
+                    <Chip
+                      label={alert.status}
                       color={getStatusColor(alert.status)}
                       size="small"
                     />
@@ -151,8 +151,8 @@ const Alerts: React.FC = () => {
                     {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell>
-                    <Button 
-                      size="small" 
+                    <Button
+                      size="small"
                       variant="outlined"
                       onClick={() => {
                         setSelectedAlert(alert);
@@ -170,7 +170,6 @@ const Alerts: React.FC = () => {
         </Table>
       </TableContainer>
 
-      {/* REVIEW ALERT DIALOG */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Review Alert</DialogTitle>
         <DialogContent>
@@ -194,18 +193,6 @@ const Alerts: React.FC = () => {
               <Paper sx={{ p: 2, mt: 2, bgcolor: 'background.default' }}>
                 <Typography>{selectedAlert.content}</Typography>
               </Paper>
-<Typography variant="subtitle2" color="text.secondary">
-  Source: {selectedAlert.source}
-</Typography>
-<Typography variant="subtitle2" color="text.secondary">
-  Author: {selectedAlert.author ?? 'Not available'}   // <-- ADD THIS
-</Typography>
-<Typography variant="subtitle2" color="text.secondary">
-  Location: {selectedAlert.location ?? 'Not available'} // <-- ADD THIS
-</Typography>
-<Typography variant="subtitle2" color="text.secondary">
-  Protectee: {selectedAlert.protectee?.name || 'Unknown'}
-</Typography>
               <TextField
                 fullWidth
                 multiline
@@ -216,29 +203,29 @@ const Alerts: React.FC = () => {
                 sx={{ mt: 2 }}
               />
               <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button 
-                  variant="contained" 
-                  color="error" 
+                <Button
+                  variant="contained"
+                  color="error"
                   onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'CONFIRMED')}
                 >
                   Confirm Threat
                 </Button>
-                <Button 
-                  variant="contained" 
-                  color="success" 
+                <Button
+                  variant="contained"
+                  color="success"
                   onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'FALSE_POSITIVE')}
                 >
                   False Positive
                 </Button>
-                <Button 
-                  variant="contained" 
-                  color="info" 
+                <Button
+                  variant="contained"
+                  color="info"
                   onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'INVESTIGATING')}
                 >
                   Investigate
                 </Button>
-                <Button 
-                  variant="outlined" 
+                <Button
+                  variant="outlined"
                   onClick={() => setDialogOpen(false)}
                 >
                   Close
