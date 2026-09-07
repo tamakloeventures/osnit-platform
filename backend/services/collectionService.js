@@ -108,42 +108,47 @@ class CollectionService {
     }
   }
 
-  async createAlert(collected, analysis) {
-    try {
-      const existing = await prisma.alert.findFirst({
-        where: { content: collected.content.substring(0, 100) }
-      });
-      if (existing) return existing;
+async createAlert(collected, analysis) {
+  try {
+    const existing = await prisma.alert.findFirst({
+      where: { content: collected.content.substring(0, 100) }
+    });
+    if (existing) return existing;
 
-      const alert = await prisma.alert.create({
-        data: {
-          source: collected.source,
-          content: collected.content,
-          url: collected.url,
-          riskScore: analysis.threatScore || 0,
-          aiConfidence: analysis.confidence || 0.5,
-          status: 'PENDING',
-          protecteeId: collected.protecteeId,
-          isHistorical: false,
-          originalDate: collected.postedDate,
-        }
-      });
+    const alert = await prisma.alert.create({
+      data: {
+        source: collected.source,
+        content: collected.content,
+        url: collected.url,
+        riskScore: analysis.threatScore || 0,
+        aiConfidence: analysis.confidence || 0.5,
+        status: 'PENDING',
+        protecteeId: collected.protecteeId,
+        isHistorical: false,
+        originalDate: collected.postedDate,
+        // ✅ ADD THESE FIELDS
+        author: collected.author ?? null,
+        location: collected.location ?? null,
+        platform: collected.source ?? null,
+        createdBy: 'AI System',
+        sourceUrl: collected.url ?? null,
+      }
+    });
 
-      await prisma.vetting.create({
-        data: {
-          alertId: alert.id,
-          status: 'PENDING',
-          aiConfidence: analysis.confidence || 0.5,
-        }
-      });
+    await prisma.vetting.create({
+      data: {
+        alertId: alert.id,
+        status: 'PENDING',
+        aiConfidence: analysis.confidence || 0.5,
+      }
+    });
 
-      console.log(`🔴 Alert created: ${alert.id}`);
-      return alert;
-    } catch (error) {
-      console.error('Alert creation error:', error);
-    }
+    console.log(`🔴 Alert created: ${alert.id}`);
+    return alert;
+  } catch (error) {
+    console.error('Alert creation error:', error);
   }
-
+}
   async collectTwitter(keywords, protecteeId) {
     console.log('📱 Twitter collection would run here with:', keywords);
     return [];

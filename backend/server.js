@@ -82,20 +82,20 @@ app.post('/api/alerts', async (req, res) => {
     } = req.body;
     
     const alert = await prisma.alert.create({
-      data: {
-        source,
-        content,
-        url,
-        riskScore: riskScore || 50,
-        aiConfidence: 0.75,
-        status: 'PENDING',
-        protecteeId,
-        author: author || 'Unknown',
-        location: location || 'Unknown',
-        platform: platform || source,
-        createdBy: createdBy || 'System',
-        sourceUrl: url,
-      },
+data: {
+  source,
+  content,
+  url,
+  riskScore: riskScore || 50,
+  aiConfidence: 0.75,
+  status: 'PENDING',
+  protecteeId,
+  author: author ?? null,
+  location: location ?? null,
+  platform: platform ?? source,
+  createdBy: createdBy ?? 'System',
+  sourceUrl: url ?? null,
+},
     });
     res.json(alert);
   } catch (error) {
