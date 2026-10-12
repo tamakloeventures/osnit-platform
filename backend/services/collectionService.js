@@ -108,47 +108,47 @@ class CollectionService {
     }
   }
 
-async createAlert(collected, analysis) {
-  try {
-    const existing = await prisma.alert.findFirst({
-      where: { content: collected.content.substring(0, 100) }
-    });
-    if (existing) return existing;
+  async createAlert(collected, analysis) {
+    try {
+      const existing = await prisma.alert.findFirst({
+        where: { content: collected.content.substring(0, 100) }
+      });
+      if (existing) return existing;
 
-    const alert = await prisma.alert.create({
-      data: {
-        source: collected.source,
-        content: collected.content,
-        url: collected.url,
-        riskScore: analysis.threatScore || 0,
-        aiConfidence: analysis.confidence || 0.5,
-        status: 'PENDING',
-        protecteeId: collected.protecteeId,
-        isHistorical: false,
-        originalDate: collected.postedDate,
-        // ✅ ADD THESE FIELDS
-        author: collected.author ?? null,
-        location: collected.location ?? null,
-        platform: collected.source ?? null,
-        createdBy: 'AI System',
-        sourceUrl: collected.url ?? null,
-      }
-    });
+      const alert = await prisma.alert.create({
+        data: {
+          source: collected.source,
+          content: collected.content,
+          url: collected.url,
+          riskScore: analysis.threatScore || 0,
+          aiConfidence: analysis.confidence || 0.5,
+          status: 'PENDING',
+          protecteeId: collected.protecteeId,
+          isHistorical: false,
+          originalDate: collected.postedDate,
+          author: collected.author ?? null,
+          location: collected.location ?? null,
+          platform: collected.source ?? null,
+          createdBy: 'AI System',
+          sourceUrl: collected.url ?? null,
+        }
+      });
 
-    await prisma.vetting.create({
-      data: {
-        alertId: alert.id,
-        status: 'PENDING',
-        aiConfidence: analysis.confidence || 0.5,
-      }
-    });
+      await prisma.vetting.create({
+        data: {
+          alertId: alert.id,
+          status: 'PENDING',
+          aiConfidence: analysis.confidence || 0.5,
+        }
+      });
 
-    console.log(`🔴 Alert created: ${alert.id}`);
-    return alert;
-  } catch (error) {
-    console.error('Alert creation error:', error);
+      console.log(`🔴 Alert created: ${alert.id}`);
+      return alert;
+    } catch (error) {
+      console.error('Alert creation error:', error);
+    }
   }
-}
+
   async collectTwitter(keywords, protecteeId) {
     console.log('📱 Twitter collection would run here with:', keywords);
     return [];
@@ -176,14 +176,14 @@ async createAlert(collected, analysis) {
             const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/rss.xml'];
             results = await this.collectRSS(feeds, config.protecteeId);
           }
-          
+
           if (results.length > 0) {
             await prisma.monitoringConfig.update({
               where: { id: config.id },
               data: { lastRun: new Date() }
             });
           }
-          
+
           console.log(`📊 ${config.name}: collected ${results.length} items`);
         } catch (error) {
           console.error(`Collection error for ${config.name}:`, error);
@@ -191,6 +191,44 @@ async createAlert(collected, analysis) {
       }
     });
     console.log('⏰ Scheduled collection started (every 15 minutes)');
+  }
+
+  // ✅ NEW: Manually trigger collection (runs immediately, same logic as scheduled)
+  async runScheduledCollection() {
+    console.log('🔄 Manual collection triggered...');
+    const configs = await prisma.monitoringConfig.findMany({
+      where: { isActive: true },
+      include: { protectee: true }
+    });
+
+    const summary = [];
+
+    for (const config of configs) {
+      try {
+        let results = [];
+        if (config.sourceType === 'Twitter') {
+          results = await this.collectTwitter(config.keywords, config.protecteeId);
+        } else if (config.sourceType === 'News') {
+          const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/rss.xml'];
+          results = await this.collectRSS(feeds, config.protecteeId);
+        }
+
+        if (results.length > 0) {
+          await prisma.monitoringConfig.update({
+            where: { id: config.id },
+            data: { lastRun: new Date() }
+          });
+        }
+
+        summary.push({ name: config.name, collected: results.length });
+        console.log(`📊 ${config.name}: collected ${results.length} items`);
+      } catch (error) {
+        console.error(`Collection error for ${config.name}:`, error);
+        summary.push({ name: config.name, error: error.message });
+      }
+    }
+
+    return summary;
   }
 }
 
