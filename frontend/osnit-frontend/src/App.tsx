@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -21,13 +21,27 @@ const theme = createTheme({
 function App() {
   const [user, setUser] = useState<any>(null);
 
-  const handleLogin = (userData: any) => {
-    console.log('Login success:', userData);
+  // Restore session from localStorage on first load
+  useEffect(() => {
+    const token = localStorage.getItem('osnit_token');
+    const savedUser = localStorage.getItem('osnit_user');
+    if (token && savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        localStorage.removeItem('osnit_token');
+        localStorage.removeItem('osnit_user');
+      }
+    }
+  }, []);
+
+  const handleLogin = (userData: any, _token: string) => {
     setUser(userData);
   };
 
   const handleLogout = () => {
-    console.log('Logout clicked');
+    localStorage.removeItem('osnit_token');
+    localStorage.removeItem('osnit_user');
     setUser(null);
   };
 

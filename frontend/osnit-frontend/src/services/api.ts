@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Hardcode the URL temporarily for testing
 const API_BASE_URL = 'https://osnit-api.onrender.com/api';
 
 export const api = axios.create({
@@ -9,6 +8,20 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Attach token from localStorage to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('osnit_token');
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Auth
+export const login = (email: string, password: string) =>
+  api.post('/auth/login', { email, password });
 
 // API functions
 export const getAlerts = () => api.get('/alerts');
@@ -22,6 +35,4 @@ export const reviewAlert = (id: string, data: any) => api.post(`/vetting/review/
 export const getThreatSearch = (protecteeId: string, params: any) => api.get(`/threats/search/${protecteeId}`, { params });
 export const getThreatTimeline = (protecteeId: string, params: any) => api.get(`/threats/timeline/${protecteeId}`, { params });
 export const getThreatReport = (protecteeId: string) => api.get(`/threats/report/${protecteeId}`);
-
-// Combined dashboard data - ONE API CALL
 export const getDashboardData = () => api.get('/dashboard');

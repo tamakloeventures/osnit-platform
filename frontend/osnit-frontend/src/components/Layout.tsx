@@ -52,7 +52,6 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
     if (onLogout) {
       onLogout();
     }
-    navigate('/');
   };
 
   const menuItems = [
@@ -85,16 +84,10 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
                 '&.Mui-selected': {
                   bgcolor: 'primary.main',
                   color: 'white',
-                  '&:hover': {
-                    bgcolor: 'primary.dark',
-                  },
-                  '& .MuiListItemIcon-root': {
-                    color: 'white',
-                  },
+                  '&:hover': { bgcolor: 'primary.dark' },
+                  '& .MuiListItemIcon-root': { color: 'white' },
                 },
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                },
+                '&:hover': { bgcolor: 'action.hover' },
                 mx: 1,
                 borderRadius: 1,
               }}
@@ -110,9 +103,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-      <AppBar 
-        position="fixed" 
-        sx={{ 
+      <AppBar
+        position="fixed"
+        sx={{
           zIndex: 1200,
           bgcolor: 'background.paper',
           color: 'text.primary',
@@ -158,9 +151,9 @@ const Layout: React.FC<LayoutProps> = ({ children, user, onLogout }) => {
         variant="permanent"
         sx={{
           display: { xs: 'none', sm: 'block' },
-          '& .MuiDrawer-paper': { 
-            width: drawerWidth, 
-            borderRight: 1, 
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            borderRight: 1,
             borderColor: 'divider',
             position: 'fixed',
             height: '100vh',

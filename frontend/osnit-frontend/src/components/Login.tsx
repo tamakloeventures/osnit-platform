@@ -10,9 +10,10 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { login } from '../services/api';
 
 interface LoginProps {
-  onLogin: (user: any) => void;
+  onLogin: (user: any, token: string) => void;
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
@@ -28,32 +29,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
 
     try {
-      console.log('Login attempt:', email);
-      
-      if (email === 'partner@osnit.local' && password === 'SecurePass123!') {
-        const userData = { 
-          name: 'Partner Analyst', 
-          email: 'partner@osnit.local', 
-          role: 'ANALYST' 
-        };
-        console.log('Login success:', userData);
-        onLogin(userData);
-        navigate('/dashboard');
-      } else if (email === 'admin@osnit.local' && password === 'admin123!') {
-        const userData = { 
-          name: 'Admin User', 
-          email: 'admin@osnit.local', 
-          role: 'ADMIN' 
-        };
-        console.log('Login success:', userData);
-        onLogin(userData);
-        navigate('/dashboard');
-      } else {
-        setError('Invalid email or password');
-      }
-    } catch (err) {
+      const response = await login(email, password);
+      const { token, user } = response.data;
+
+      localStorage.setItem('osnit_token', token);
+      localStorage.setItem('osnit_user', JSON.stringify(user));
+
+      onLogin(user, token);
+      navigate('/dashboard');
+    } catch (err: any) {
       console.error('Login error:', err);
-      setError('Login failed. Please try again.');
+      if (err.response?.status === 401) {
+        setError('Invalid email or password');
+      } else {
+        setError('Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -123,18 +113,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               {loading ? <CircularProgress size={24} /> : 'Login'}
             </Button>
           </form>
-
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Demo Credentials:
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              partner@osnit.local / SecurePass123!
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              admin@osnit.local / admin123!
-            </Typography>
-          </Box>
         </Paper>
       </Box>
     </Container>
