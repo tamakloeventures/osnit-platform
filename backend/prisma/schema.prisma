@@ -11,7 +11,7 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   name      String
-  password  String
+  passwordHash String
   role      Role     @default(ANALYST)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -55,13 +55,11 @@ model Alert {
   updatedAt    DateTime    @updatedAt
   vetting      Vetting?
   threatSearchIndex ThreatSearchIndex[]
-  
-  // ADD THESE NEW FIELDS
-  author       String?     // Who posted the threat
-  location     String?     // Where the threat came from
-  platform     String?     // Social media platform
-  createdBy    String?     @default("System")  // Who created the alert
-  sourceUrl    String?     // Original source URL
+  author       String?
+  location     String?
+  platform     String?
+  createdBy    String?     @default("System")
+  sourceUrl    String?
 }
 
 // ============ COLLECTED DATA ============

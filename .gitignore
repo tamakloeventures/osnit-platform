@@ -17,3 +17,9 @@ coverage/
 *.dmg
 *.msi
 *.iso
+
+# Backup files
+*.backup
+
+# One-time admin setup script (not for production)
+backend/scripts/create-users.js

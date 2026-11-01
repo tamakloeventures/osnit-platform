@@ -4,8 +4,11 @@ const dotenv = require('dotenv');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
+const { requireAuth, requireRole, JWT_SECRET } = require('./middleware/auth');
 
 // Load environment variables FIRST
 dotenv.config();
@@ -49,6 +52,46 @@ app.get('/api/health', async (req, res) => {
       database: 'disconnected',
       error: error.message,
     });
+  }
+});
+
+// ============ AUTHENTICATION ============
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordMatches) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, email: user.email, role: user.role, name: user.name },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -190,11 +233,11 @@ app.get('/api/vetting/pending', async (req, res) => {
   }
 });
 
-app.post('/api/vetting/review/:id', async (req, res) => {
+app.post('/api/vetting/review/:id', requireAuth, async (req, res) => {
   try {
     const { decision, notes } = req.body;
     const { id } = req.params;
-    const result = await vettingService.reviewAlert(id, 'system', decision, notes);
+    const result = await vettingService.reviewAlert(id, req.user.userId, decision, notes);
     res.json(result);
   } catch (error) {
     console.error('Review error:', error);
@@ -290,11 +333,24 @@ app.post('/api/monitoring/configs', async (req, res) => {
 });
 
 // ============ USERS ============
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
   try {
     const { email, name, password, role } = req.body;
+
+    if (!email || !name || !password) {
+      return res.status(400).json({ error: 'Email, name, and password required' });
+    }
+
+    const allowedRoles = ['ADMIN', 'ANALYST', 'VIEWER'];
+    const finalRole = role || 'ANALYST';
+    if (!allowedRoles.includes(finalRole)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
     const user = await prisma.user.create({
-      data: { email, name, password, role: role || 'ANALYST' },
+      data: { email, name, passwordHash, role: finalRole },
     });
     res.json({
       id: user.id,
@@ -308,7 +364,7 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: { id: true, email: true, name: true, role: true, createdAt: true },
