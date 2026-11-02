@@ -1,26 +1,110 @@
 const { PrismaClient } = require('@prisma/client');
-const aiService = require('./aiService');
+const { PrismaPg } = require('@prisma/adapter-pg');
+const Parser = require('rss-parser');
+const { InferenceClient } = require('@huggingface/inference');
+const nodemailer = require('nodemailer');
 const cron = require('node-cron');
 
-// Use the global Prisma instance or create one with adapter
-let prisma;
-try {
-  // Try to use the global instance from server.js
-  prisma = global.prisma;
-  if (!prisma) {
-    // If not available, create one with adapter
-    const { PrismaPg } = require('@prisma/adapter-pg');
-    const adapter = new PrismaPg({
-      connectionString: process.env.DATABASE_URL,
-    });
-    prisma = new PrismaClient({ adapter });
-  }
-} catch (error) {
-  console.error('Prisma initialization error:', error);
-  prisma = new PrismaClient();
+// Initialize Prisma
+let prisma = global.prisma;
+if (!prisma) {
+  const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+  prisma = new PrismaClient({ adapter });
 }
 
+// Initialize Hugging Face Client
+const hf = new InferenceClient(process.env.HF_TOKEN);
+
+// Initialize Email Transporter (Using Gmail)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
 class CollectionService {
+  constructor() {
+    this.parser = new Parser();
+  }
+
+  // 1. REAL AI ANALYSIS (Zero-Shot Classification)
+  async analyzeContent(text, protecteeName) {
+    try {
+      const result = await hf.zeroShotClassification({
+        model: 'facebook/bart-large-mnli',
+        inputs: text,
+        parameters: {
+          candidate_labels: ['threat of violence', 'political complaint', 'general news', 'positive support'],
+          multi_label: false,
+        },
+      });
+
+      const topLabel = result.labels[0];
+      const confidence = result.scores[0];
+
+      let threatLevel = 'low';
+      let threatScore = 20;
+
+      if (topLabel === 'threat of violence' && confidence > 0.7) {
+        threatLevel = 'high';
+        threatScore = 95;
+      } else if (topLabel === 'threat of violence' && confidence > 0.4) {
+        threatLevel = 'medium';
+        threatScore = 60;
+      } else if (topLabel === 'political complaint') {
+        threatLevel = 'low';
+        threatScore = 30;
+      }
+
+      return {
+        threatLevel,
+        threatScore,
+        confidence: confidence,
+        keywords: [topLabel],
+        summary: `AI classified this as: ${topLabel}`,
+      };
+    } catch (error) {
+      console.error('AI Error:', error);
+      return { threatLevel: 'low', threatScore: 0, confidence: 0, keywords: [], summary: 'AI analysis failed' };
+    }
+  }
+
+  // 2. REAL RSS SCRAPING
+  async collectRSS(feedUrls, protecteeId) {
+    const results = [];
+    const protectee = await prisma.protectee.findUnique({ where: { id: protecteeId } });
+
+    if (!protectee) return [];
+
+    for (const url of feedUrls) {
+      try {
+        const feed = await this.parser.parseURL(url);
+        for (const item of feed.items) {
+          const content = (item.title || '') + ' ' + (item.contentSnippet || '');
+          
+          // Check if the protectee's name is mentioned
+          if (protectee.name && content.toLowerCase().includes(protectee.name.toLowerCase())) {
+            results.push({
+              source: 'News',
+              sourceId: item.guid || item.link,
+              content: content,
+              url: item.link,
+              author: item.creator || 'News Source',
+              postedDate: new Date(item.pubDate || new Date()),
+              protecteeId: protecteeId,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`RSS Error (${url}):`, err.message);
+      }
+    }
+    return results;
+  }
+
+  // 3. SAVE & TRIGGER ALERTS
   async storeCollectedData(data) {
     try {
       const existing = await prisma.collectedData.findFirst({
@@ -38,43 +122,22 @@ class CollectionService {
           postedDate: data.postedDate,
           protecteeId: data.protecteeId,
           isProcessed: false,
-          rawData: data.rawData || null
         }
       });
 
-      await this.analyzeCollectedData(collected.id);
-      return collected;
-    } catch (error) {
-      console.error('Store error:', error);
-      return null;
-    }
-  }
+      const protectee = await prisma.protectee.findUnique({ where: { id: data.protecteeId } });
+      const analysis = await this.analyzeContent(data.content, protectee.name);
 
-  async analyzeCollectedData(collectedId) {
-    try {
-      const collected = await prisma.collectedData.findUnique({
-        where: { id: collectedId },
-        include: { protectee: true }
-      });
-
-      if (!collected) return;
-
-      const protecteeName = collected.protectee?.name || '';
-      const aiResult = await aiService.analyzeContent(collected.content, protecteeName);
-
-      const analysis = await prisma.aiAnalysis.create({
+      await prisma.aiAnalysis.create({
         data: {
           collectedDataId: collected.id,
-          sentiment: aiResult.sentiment,
-          sentimentScore: aiResult.sentimentScore,
-          threatLevel: aiResult.threatLevel,
-          threatScore: aiResult.threatScore,
-          entities: aiResult.entities,
-          keywords: aiResult.keywords,
-          riskFactors: aiResult.riskFactors,
-          summary: aiResult.summary,
-          confidence: aiResult.confidence,
-          aiModel: 'natural + custom-rules'
+          sentiment: 'neutral',
+          threatLevel: analysis.threatLevel,
+          threatScore: analysis.threatScore,
+          keywords: analysis.keywords,
+          confidence: analysis.confidence,
+          summary: analysis.summary,
+          aiModel: 'facebook/bart-large-mnli',
         }
       });
 
@@ -83,152 +146,65 @@ class CollectionService {
         data: { isProcessed: true }
       });
 
-      // Create search index
-      await prisma.threatSearchIndex.create({
-        data: {
-          searchableText: `${collected.content} ${aiResult.keywords?.join(' ') || ''}`,
-          collectedDataId: collected.id,
-          protecteeId: collected.protecteeId,
-          source: collected.source,
-          date: collected.postedDate,
-          threatScore: aiResult.threatScore || 0,
-          status: aiResult.threatLevel || 'low',
-          keywords: aiResult.keywords || []
-        }
-      });
+      if (analysis.threatLevel === 'high') {
+        const alert = await prisma.alert.create({
+          data: {
+            source: data.source,
+            content: data.content,
+            url: data.url,
+            riskScore: analysis.threatScore,
+            aiConfidence: analysis.confidence,
+            status: 'PENDING',
+            protecteeId: data.protecteeId,
+            author: data.author,
+            location: 'Unknown', 
+            createdBy: 'AI System',
+            sourceUrl: data.url,
+          }
+        });
 
-      // Create alert if high risk
-      if (aiResult.threatLevel === 'high' || aiResult.threatScore >= 60) {
-        await this.createAlert(collected, analysis);
+        const mailOptions = {
+          from: process.env.EMAIL_USER,
+          to: process.env.ALERT_EMAIL,
+          subject: `🚨 HIGH RISK THREAT DETECTED: ${protectee.name}`,
+          text: `A potential threat was detected against ${protectee.name}.\n\nSource: ${data.source}\nContent: ${data.content}\nLink: ${data.url}\n\nPlease log in to the OSNIT dashboard to review.`
+        };
+
+        transporter.sendMail(mailOptions, (err, info) => {
+          if (err) console.error('Email Alert Error:', err);
+          else console.log('✅ Email Alert Sent:', info.response);
+        });
+
+        console.log(`🔴 Alert created & Email Sent: ${alert.id}`);
       }
 
-      return analysis;
+      return collected;
     } catch (error) {
-      console.error('AI Analysis error:', error);
+      console.error('Store Error:', error);
     }
   }
 
-  async createAlert(collected, analysis) {
-    try {
-      const existing = await prisma.alert.findFirst({
-        where: { content: collected.content.substring(0, 100) }
-      });
-      if (existing) return existing;
-
-      const alert = await prisma.alert.create({
-        data: {
-          source: collected.source,
-          content: collected.content,
-          url: collected.url,
-          riskScore: analysis.threatScore || 0,
-          aiConfidence: analysis.confidence || 0.5,
-          status: 'PENDING',
-          protecteeId: collected.protecteeId,
-          isHistorical: false,
-          originalDate: collected.postedDate,
-          author: collected.author ?? null,
-          location: collected.location ?? null,
-          platform: collected.source ?? null,
-          createdBy: 'AI System',
-          sourceUrl: collected.url ?? null,
-        }
-      });
-
-      await prisma.vetting.create({
-        data: {
-          alertId: alert.id,
-          status: 'PENDING',
-          aiConfidence: analysis.confidence || 0.5,
-        }
-      });
-
-      console.log(`🔴 Alert created: ${alert.id}`);
-      return alert;
-    } catch (error) {
-      console.error('Alert creation error:', error);
-    }
-  }
-
-  async collectTwitter(keywords, protecteeId) {
-    console.log('📱 Twitter collection would run here with:', keywords);
-    return [];
-  }
-
-  async collectRSS(feedUrls, protecteeId) {
-    console.log('📰 RSS collection would run here with:', feedUrls);
-    return [];
-  }
-
+  // 4. SCHEDULER
   startScheduledCollection() {
-    cron.schedule('*/15 * * * *', async () => {
-      console.log('🔄 Running scheduled collection...');
+    cron.schedule('0 * * * *', async () => {
+      console.log('🔄 Running hourly news collection...');
+      
       const configs = await prisma.monitoringConfig.findMany({
         where: { isActive: true },
-        include: { protectee: true }
       });
 
       for (const config of configs) {
-        try {
-          let results = [];
-          if (config.sourceType === 'Twitter') {
-            results = await this.collectTwitter(config.keywords, config.protecteeId);
-          } else if (config.sourceType === 'News') {
-            const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/rss.xml'];
-            results = await this.collectRSS(feeds, config.protecteeId);
+        if (config.sourceType === 'News') {
+          const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/world/rss.xml'];
+          const newItems = await this.collectRSS(feeds, config.protecteeId);
+          
+          for (const item of newItems) {
+            await this.storeCollectedData(item);
           }
-
-          if (results.length > 0) {
-            await prisma.monitoringConfig.update({
-              where: { id: config.id },
-              data: { lastRun: new Date() }
-            });
-          }
-
-          console.log(`📊 ${config.name}: collected ${results.length} items`);
-        } catch (error) {
-          console.error(`Collection error for ${config.name}:`, error);
         }
       }
     });
-    console.log('⏰ Scheduled collection started (every 15 minutes)');
-  }
-
-  // ✅ NEW: Manually trigger collection (runs immediately, same logic as scheduled)
-  async runScheduledCollection() {
-    console.log('🔄 Manual collection triggered...');
-    const configs = await prisma.monitoringConfig.findMany({
-      where: { isActive: true },
-      include: { protectee: true }
-    });
-
-    const summary = [];
-
-    for (const config of configs) {
-      try {
-        let results = [];
-        if (config.sourceType === 'Twitter') {
-          results = await this.collectTwitter(config.keywords, config.protecteeId);
-        } else if (config.sourceType === 'News') {
-          const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/rss.xml'];
-          results = await this.collectRSS(feeds, config.protecteeId);
-        }
-
-        if (results.length > 0) {
-          await prisma.monitoringConfig.update({
-            where: { id: config.id },
-            data: { lastRun: new Date() }
-          });
-        }
-
-        summary.push({ name: config.name, collected: results.length });
-        console.log(`📊 ${config.name}: collected ${results.length} items`);
-      } catch (error) {
-        console.error(`Collection error for ${config.name}:`, error);
-        summary.push({ name: config.name, error: error.message });
-      }
-    }
-
-    return summary;
+    console.log('⏰ Scheduled collection started (every hour)');
   }
 }
 

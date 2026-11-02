@@ -33,6 +33,9 @@
     "node-cron": "^3.0.3",
     "prisma": "^7.10.0",
     "puppeteer": "^24.43.1"
+    "@huggingface/inference": "^2.6.4",
+    "nodemailer": "^6.9.13",
+    "rss-parser": "^3.13.0",
   },
   "devDependencies": {
     "nodemon": "^3.0.0"
