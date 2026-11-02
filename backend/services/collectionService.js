@@ -1,83 +1,36 @@
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
-const Parser = require('rss-parser');
-const { InferenceClient } = require('@huggingface/inference');
-const nodemailer = require('nodemailer');
 const cron = require('node-cron');
 
-// Initialize Prisma
+// Initialize Prisma safely. If it hangs, the connect_timeout in DATABASE_URL will stop it.
 let prisma = global.prisma;
 if (!prisma) {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
   prisma = new PrismaClient({ adapter });
 }
 
-// Initialize Hugging Face Client (VERIFIED for v2.6.4: No 'new' keyword)
-const hf = InferenceClient;
-
-// Initialize Email Transporter (Using Gmail)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
 class CollectionService {
   constructor() {
-    this.parser = new Parser();
+    // No imports here. Everything is lazy-loaded inside methods to prevent startup crashes.
   }
 
-  // 1. REAL AI ANALYSIS (Zero-Shot Classification)
   async analyzeContent(text, protecteeName) {
-    try {
-      // Pass the token directly in the method call
-      const result = await hf.zeroShotClassification({
-        model: 'facebook/bart-large-mnli',
-        inputs: text,
-        parameters: {
-          candidate_labels: ['threat of violence', 'political complaint', 'general news', 'positive support'],
-          multi_label: false,
-        },
-      }, {
-        use_cache: false,
-        wait_for_model: true,
-      });
-
-      // In v2.6.4, the result is an array of objects
-      const topLabel = result[0].labels[0];
-      const confidence = result[0].scores[0];
-
-      let threatLevel = 'low';
-      let threatScore = 20;
-
-      if (topLabel === 'threat of violence' && confidence > 0.7) {
-        threatLevel = 'high';
-        threatScore = 95;
-      } else if (topLabel === 'threat of violence' && confidence > 0.4) {
-        threatLevel = 'medium';
-        threatScore = 60;
-      } else if (topLabel === 'political complaint') {
-        threatLevel = 'low';
-        threatScore = 30;
-      }
-
-      return {
-        threatLevel,
-        threatScore,
-        confidence: confidence,
-        keywords: [topLabel],
-        summary: `AI classified this as: ${topLabel}`,
-      };
-    } catch (error) {
-      console.error('AI Error:', error);
-      return { threatLevel: 'low', threatScore: 0, confidence: 0, keywords: [], summary: 'AI analysis failed' };
-    }
+    // Temporary safe keyword check. No external APIs.
+    const threatKeywords = ['kill', 'attack', 'bomb', 'shoot', 'destroy'];
+    const hasThreat = threatKeywords.some(kw => text.toLowerCase().includes(kw));
+    return {
+      threatLevel: hasThreat ? 'high' : 'low',
+      threatScore: hasThreat ? 90 : 10,
+      confidence: hasThreat ? 0.9 : 0.1,
+      keywords: hasThreat ? ['threat'] : ['safe'],
+      summary: hasThreat ? 'Keyword threat detected' : 'No threat detected',
+    };
   }
 
-  // 2. REAL RSS SCRAPING
   async collectRSS(feedUrls, protecteeId) {
+    // Lazy-load the parser only when this method is called
+    const Parser = require('rss-parser');
+    const parser = new Parser();
     const results = [];
     const protectee = await prisma.protectee.findUnique({ where: { id: protecteeId } });
 
@@ -85,10 +38,9 @@ class CollectionService {
 
     for (const url of feedUrls) {
       try {
-        const feed = await this.parser.parseURL(url);
+        const feed = await parser.parseURL(url);
         for (const item of feed.items) {
           const content = (item.title || '') + ' ' + (item.contentSnippet || '');
-          
           if (protectee.name && content.toLowerCase().includes(protectee.name.toLowerCase())) {
             results.push({
               source: 'News',
@@ -108,7 +60,6 @@ class CollectionService {
     return results;
   }
 
-  // 3. SAVE & TRIGGER ALERTS
   async storeCollectedData(data) {
     try {
       const existing = await prisma.collectedData.findFirst({
@@ -141,7 +92,7 @@ class CollectionService {
           keywords: analysis.keywords,
           confidence: analysis.confidence,
           summary: analysis.summary,
-          aiModel: 'facebook/bart-large-mnli',
+          aiModel: 'keyword-fallback',
         }
       });
 
@@ -167,17 +118,24 @@ class CollectionService {
           }
         });
 
-        const mailOptions = {
-          from: process.env.EMAIL_USER,
-          to: process.env.ALERT_EMAIL,
-          subject: `🚨 HIGH RISK THREAT DETECTED: ${protectee.name}`,
-          text: `A potential threat was detected against ${protectee.name}.\n\nSource: ${data.source}\nContent: ${data.content}\nLink: ${data.url}\n\nPlease log in to the OSNIT dashboard to review.`
-        };
-
-        transporter.sendMail(mailOptions, (err, info) => {
-          if (err) console.error('Email Alert Error:', err);
-          else console.log('✅ Email Alert Sent:', info.response);
-        });
+        // Lazy-load email only if a threat is found
+        if (process.env.EMAIL_USER && process.env.EMAIL_PASS && process.env.ALERT_EMAIL) {
+          const nodemailer = require('nodemailer');
+          const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+          });
+          const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: process.env.ALERT_EMAIL,
+            subject: `🚨 HIGH RISK THREAT DETECTED: ${protectee.name}`,
+            text: `A potential threat was detected against ${protectee.name}.\n\nContent: ${data.content}\nLink: ${data.url}\n\nPlease log in to the OSNIT dashboard to review.`
+          };
+          transporter.sendMail(mailOptions, (err, info) => {
+            if (err) console.error('Email Alert Error:', err);
+            else console.log('✅ Email Alert Sent:', info.response);
+          });
+        }
 
         console.log(`🔴 Alert created & Email Sent: ${alert.id}`);
       }
@@ -188,20 +146,14 @@ class CollectionService {
     }
   }
 
-  // 4. SCHEDULER
   startScheduledCollection() {
     cron.schedule('0 * * * *', async () => {
       console.log('🔄 Running hourly news collection...');
-      
-      const configs = await prisma.monitoringConfig.findMany({
-        where: { isActive: true },
-      });
-
+      const configs = await prisma.monitoringConfig.findMany({ where: { isActive: true } });
       for (const config of configs) {
         if (config.sourceType === 'News') {
           const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/world/rss.xml'];
           const newItems = await this.collectRSS(feeds, config.protecteeId);
-          
           for (const item of newItems) {
             await this.storeCollectedData(item);
           }
