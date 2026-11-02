@@ -12,8 +12,8 @@ if (!prisma) {
   prisma = new PrismaClient({ adapter });
 }
 
-// Initialize Hugging Face Client
-const hf = new InferenceClient(process.env.HF_TOKEN);
+// Initialize Hugging Face Client (VERIFIED for v2.6.4: No 'new' keyword)
+const hf = InferenceClient;
 
 // Initialize Email Transporter (Using Gmail)
 const transporter = nodemailer.createTransport({
@@ -32,6 +32,7 @@ class CollectionService {
   // 1. REAL AI ANALYSIS (Zero-Shot Classification)
   async analyzeContent(text, protecteeName) {
     try {
+      // Pass the token directly in the method call
       const result = await hf.zeroShotClassification({
         model: 'facebook/bart-large-mnli',
         inputs: text,
@@ -39,10 +40,14 @@ class CollectionService {
           candidate_labels: ['threat of violence', 'political complaint', 'general news', 'positive support'],
           multi_label: false,
         },
+      }, {
+        use_cache: false,
+        wait_for_model: true,
       });
 
-      const topLabel = result.labels[0];
-      const confidence = result.scores[0];
+      // In v2.6.4, the result is an array of objects
+      const topLabel = result[0].labels[0];
+      const confidence = result[0].scores[0];
 
       let threatLevel = 'low';
       let threatScore = 20;
@@ -84,7 +89,6 @@ class CollectionService {
         for (const item of feed.items) {
           const content = (item.title || '') + ' ' + (item.contentSnippet || '');
           
-          // Check if the protectee's name is mentioned
           if (protectee.name && content.toLowerCase().includes(protectee.name.toLowerCase())) {
             results.push({
               source: 'News',
