@@ -297,7 +297,7 @@ app.post('/api/collect/scan/:protecteeId', requireAuth, async (req, res) => {
     const protectee = await prisma.protectee.findUnique({ where: { id: req.params.protecteeId } });
     if (!protectee) return res.status(404).json({ error: 'Protectee not found' });
 
-    dataSourceService.runAllSources(protectee.keywords, protectee.id).then(async (results) => {
+    collectionService.collectRSS(["https://citinewsroom.com/feed/", "https://www.myjoyonline.com/feed/", "https://www.adomonline.com/feed/", "https://www.ghanaweb.com/GhanaHomePage/rss/news.xml", "https://3news.com/feed/"], protectee.id).then(async (results) => {
       console.log(`Scan complete for ${protectee.name}: ${results.news?.length || 0} news items`);
     }).catch(err => console.error('Scan error:', err));
 
