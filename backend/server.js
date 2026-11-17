@@ -20,6 +20,7 @@ global.prisma = prisma;
 
 const aiService = require('./services/aiService');
 const collectionService = require('./services/collectionService');
+const dataSourceService = require('./services/dataSourceService');
 const vettingService = require('./services/vettingService');
 
 app.use(helmet());
@@ -168,12 +169,26 @@ app.post('/api/protectees', requireAuth, async (req, res) => {
   }
 });
 
+app.put('/api/protectees/:id', requireAuth, async (req, res) => {
+  try {
+    const { name, title, keywords, locations, status } = req.body;
+    const protectee = await prisma.protectee.update({
+      where: { id: req.params.id },
+      data: { name, title, keywords, locations, status }
+    });
+    res.json(protectee);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============ STATS ============
 app.get('/api/stats', requireAuth, async (req, res) => {
   try {
+    // Use a more robust count to avoid issues with null status fields
     const [totalAlerts, activeProtectees, threatsToday, criticalAlerts] = await Promise.all([
       prisma.alert.count(),
-      prisma.protectee.count({ where: { status: 'ACTIVE' } }),
+      prisma.protectee.count({ where: { OR: [{ status: 'ACTIVE' }, { status: null }] } }), // Counts Active OR null
       prisma.alert.count({ where: { createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
       prisma.alert.count({ where: { severity: 'CRITICAL' } })
     ]);
@@ -251,7 +266,7 @@ app.get('/api/threats/report/:protecteeId', requireAuth, async (req, res) => {
   }
 });
 
-// ============ COLLECTED DATA ============
+// ============ COLLECTED DATA & MANUAL SCAN ============
 app.get('/api/collected', requireAuth, async (req, res) => {
   try {
     const data = await prisma.collectedData.findMany({
@@ -259,6 +274,21 @@ app.get('/api/collected', requireAuth, async (req, res) => {
       include: { aiAnalysis: true, protectee: true }
     });
     res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/collect/scan/:protecteeId', requireAuth, async (req, res) => {
+  try {
+    const protectee = await prisma.protectee.findUnique({ where: { id: req.params.protecteeId } });
+    if (!protectee) return res.status(404).json({ error: 'Protectee not found' });
+
+    dataSourceService.runAllSources(protectee.keywords, protectee.id).then(async (results) => {
+      console.log(`Scan complete for ${protectee.name}: ${results.news?.length || 0} news items`);
+    }).catch(err => console.error('Scan error:', err));
+
+    res.json({ message: 'Scan started in the background. Check alerts shortly.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -325,18 +355,7 @@ app.post('/api/analyze', requireAuth, async (req, res) => {
   }
 });
 
-// ============ DEBUG ============
-app.get('/api/debug', requireAuth, requireRole('ADMIN'), async (req, res) => {
-  try {
-    res.json({ timestamp: new Date().toISOString(), env: process.env.NODE_ENV, dbStatus: 'connected', nodeVersion: process.version });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 OSNIT API running on port ${PORT}`);
-  console.log(`🔒 Auth enabled on sensitive routes`);
-  console.log(`🤖 Threat Detection Engine v1 loaded`);
 });
