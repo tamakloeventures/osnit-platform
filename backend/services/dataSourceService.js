@@ -129,7 +129,7 @@ class DataSourceService {
     
     try {
       const feeds = [
-        'https://feeds.bbci.co.uk/news/world/rss.xml',
+        'https://feeds.bbci.co.uk/news/world/rss.xml', 'https://citinewsroom.com/feed/', 'https://www.myjoyonline.com/feed/', 'https://www.adomonline.com/feed/', 'https://www.ghanaweb.com/GhanaHomePage/rss/news.xml', 'https://3news.com/feed/',
         'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml',
         'https://www.aljazeera.com/xml/rss/all.xml',
         'https://feeds.reuters.com/reuters/worldNews'

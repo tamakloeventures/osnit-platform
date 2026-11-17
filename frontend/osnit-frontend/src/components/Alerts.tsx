@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Chip, Button, Dialog, DialogTitle, DialogContent, TextField, CircularProgress, Divider, List, ListItem, ListItemText,
+  MenuItem, Select, InputLabel, FormControl
 } from '@mui/material';
-import { getAlerts, submitAssessment } from '../services/api';
+import { getAlerts, submitAssessment, createAlert, getProtectees } from '../services/api';
 
 interface Alert {
   id: string;
@@ -24,15 +25,31 @@ interface Alert {
   scoreBreakdown?: any;
 }
 
+interface Protectee {
+  id: string;
+  name: string;
+}
+
 const Alerts: React.FC = () => {
   const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [protectees, setProtectees] = useState<Protectee[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [analystNote, setAnalystNote] = useState('');
 
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newContent, setNewContent] = useState('');
+  const [newSource, setNewSource] = useState('Manual Entry');
+  const [newAuthor, setNewAuthor] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [newProtecteeId, setNewProtecteeId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
     fetchAlerts();
+    fetchProtectees();
   }, []);
 
   const fetchAlerts = async () => {
@@ -43,6 +60,16 @@ const Alerts: React.FC = () => {
       console.error('Error fetching alerts:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProtectees = async () => {
+    try {
+      const response = await getProtectees();
+      setProtectees(response.data);
+      if (response.data.length > 0) setNewProtecteeId(response.data[0].id);
+    } catch (error) {
+      console.error('Error fetching protectees:', error);
     }
   };
 
@@ -58,6 +85,28 @@ const Alerts: React.FC = () => {
       fetchAlerts();
     } catch (error) {
       console.error('Error submitting assessment:', error);
+    }
+  };
+
+  const handleAddAlert = async () => {
+    if (!newContent || !newProtecteeId) return;
+    setIsSubmitting(true);
+    try {
+      await createAlert({
+        source: newSource,
+        content: newContent,
+        author: newAuthor,
+        location: newLocation,
+        protecteeId: newProtecteeId,
+        riskScore: 0, 
+      });
+      setAddDialogOpen(false);
+      setNewContent('');
+      fetchAlerts();
+    } catch (error) {
+      console.error('Error adding alert:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -78,7 +127,6 @@ const Alerts: React.FC = () => {
     return colors[status] || 'default';
   };
 
-  // Helper to render JSON breakdown safely
   const renderBreakdown = (breakdown: any) => {
     if (!breakdown) return null;
     let items = breakdown;
@@ -102,7 +150,13 @@ const Alerts: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" sx={{ fontWeight: 600, mb: 3 }}>Alert Management</Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+        <Typography variant="h4" sx={{ fontWeight: 600 }}>Alert Management</Typography>
+        <Button variant="contained" color="primary" onClick={() => setAddDialogOpen(true)}>
+          Add Alert
+        </Button>
+      </Box>
+
       <TableContainer component={Paper}>
         <Table>
           <TableHead>
@@ -138,6 +192,7 @@ const Alerts: React.FC = () => {
         </Table>
       </TableContainer>
 
+      {/* --- REVIEW DIALOG --- */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Review Alert</DialogTitle>
         <DialogContent>
@@ -154,7 +209,6 @@ const Alerts: React.FC = () => {
               
               <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>AI Explainability</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Context: {selectedAlert.context || 'unresolved'}</Typography>
-              
               {renderBreakdown(selectedAlert.scoreBreakdown)}
 
               <Divider sx={{ my: 2 }} />
@@ -167,6 +221,29 @@ const Alerts: React.FC = () => {
               </Box>
             </Box>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* --- ADD ALERT DIALOG --- */}
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Manual Alert</DialogTitle>
+        <DialogContent>
+          <FormControl fullWidth sx={{ mt: 2, mb: 2 }}>
+            <InputLabel>Protectee</InputLabel>
+            <Select value={newProtecteeId} label="Protectee" onChange={(e) => setNewProtecteeId(e.target.value)}>
+              {protectees.map(p => <MenuItem key={p.id} value={p.id}>{p.name}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField fullWidth label="Source (e.g. Facebook, News)" value={newSource} onChange={(e) => setNewSource(e.target.value)} sx={{ mb: 2 }} />
+          <TextField fullWidth label="Author" value={newAuthor} onChange={(e) => setNewAuthor(e.target.value)} sx={{ mb: 2 }} />
+          <TextField fullWidth label="Location" value={newLocation} onChange={(e) => setNewLocation(e.target.value)} sx={{ mb: 2 }} />
+          <TextField fullWidth multiline rows={4} label="Threat Content / Text" value={newContent} onChange={(e) => setNewContent(e.target.value)} sx={{ mb: 2 }} />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+            <Button variant="contained" onClick={handleAddAlert} disabled={isSubmitting || !newContent}>
+              {isSubmitting ? 'Analyzing...' : 'Analyze & Save'}
+            </Button>
+          </Box>
         </DialogContent>
       </Dialog>
     </Box>
