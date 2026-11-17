@@ -7,7 +7,8 @@
       "keywords": [
         "kill", "murder", "assassinate", "shoot", "bomb", "attack", "destroy",
         "harm", "hurt", "beat", "stab", "execute", "slaughter", "eliminate",
-        "dead", "die", "death threat", "blood", "weapon", "gun", "knife"
+        "dead", "die", "death threat", "blood", "weapon", "gun", "knife",
+        "burn", "burn down", "burn his house", "burn her house", "torch", "set on fire"
       ]
     },
     "preparation": {
@@ -16,7 +17,7 @@
       "keywords": [
         "bought a gun", "acquired weapon", "ammunition", "loaded", "cocked",
         "surveillance", "followed him", "followed her", "know his route",
-        "know her route", "schedule", "security detail", "blind spot",
+        "know her route", "know where he lives", "know where she lives", "schedule", "security detail", "blind spot",
         "waiting outside", "stakeout", "reconnaissance", "recon"
       ]
     },

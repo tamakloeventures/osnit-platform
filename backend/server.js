@@ -79,24 +79,38 @@ app.get('/api/alerts', requireAuth, async (req, res) => {
 app.post('/api/alerts', requireAuth, async (req, res) => {
   try {
     const {
-      source, content, url, riskScore, protecteeId, author,
-      severity, category, context, reviewPriority, scoreBreakdown
+      source, content, url, protecteeId, author, location
     } = req.body;
 
+    // 1. Fetch the protectee so the AI engine can do target matching
+    const protectee = await prisma.protectee.findUnique({ where: { id: protecteeId } });
+    
+    // 2. Run the text through the Threat Detection Engine
+    const analysis = await aiService.analyzeContent(content, protectee || 'Unknown');
+
+    // 3. Save the alert with the AI-generated fields
     const alert = await prisma.alert.create({
       data: {
-        source, content, url, riskScore: riskScore || 0, aiConfidence: 0.5,
-        status: 'PENDING', protecteeId,
-        author: author || 'System', location: 'Unknown', createdBy: 'Manual',
-        severity: severity || 'INFORMATIONAL',
-        category: category || 'none',
-        context: context || 'unresolved',
-        reviewPriority: reviewPriority || 'STANDARD',
-        scoreBreakdown: scoreBreakdown || {}
+        source: source || 'Manual Entry',
+        content,
+        url: url || '',
+        riskScore: analysis.riskScore,
+        aiConfidence: analysis.confidence,
+        status: 'PENDING',
+        protecteeId,
+        author: author || 'Unknown',
+        location: location || 'Unknown',
+        createdBy: 'Manual Entry',
+        severity: analysis.severity,
+        category: analysis.category,
+        context: analysis.context,
+        reviewPriority: analysis.reviewPriority,
+        scoreBreakdown: analysis.scoreBreakdown
       }
     });
     res.json(alert);
   } catch (error) {
+    console.error('Create alert error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -185,10 +199,9 @@ app.put('/api/protectees/:id', requireAuth, async (req, res) => {
 // ============ STATS ============
 app.get('/api/stats', requireAuth, async (req, res) => {
   try {
-    // Use a more robust count to avoid issues with null status fields
     const [totalAlerts, activeProtectees, threatsToday, criticalAlerts] = await Promise.all([
       prisma.alert.count(),
-      prisma.protectee.count({ where: { status: 'ACTIVE' } }), // Counts Active OR null
+      prisma.protectee.count({ where: { status: 'ACTIVE' } }),
       prisma.alert.count({ where: { createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
       prisma.alert.count({ where: { severity: 'CRITICAL' } })
     ]);
