@@ -10,26 +10,18 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { requireAuth, requireRole, JWT_SECRET } = require('./middleware/auth');
 
-// Load environment variables FIRST
 dotenv.config();
 
 const app = express();
 
-// Create Prisma with driver adapter (required for Prisma 7)
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
-
-// Make Prisma available globally so services can use it
 global.prisma = prisma;
 
-// NOW import services
 const aiService = require('./services/aiService');
 const collectionService = require('./services/collectionService');
 const vettingService = require('./services/vettingService');
 
-// Middleware
 app.use(helmet());
 app.use(cors());
 app.use(compression());
@@ -42,7 +34,6 @@ app.get('/api/health', async (req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'OK', timestamp: new Date().toISOString(), database: 'connected' });
   } catch (error) {
-    console.error('Health check error:', error);
     res.status(500).json({ status: 'Error', database: 'disconnected', error: error.message });
   }
 });
@@ -67,7 +58,6 @@ app.post('/api/auth/login', async (req, res) => {
 
     res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -81,7 +71,6 @@ app.get('/api/alerts', requireAuth, async (req, res) => {
     });
     res.json(alerts);
   } catch (error) {
-    console.error('Get alerts error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -107,7 +96,6 @@ app.post('/api/alerts', requireAuth, async (req, res) => {
     });
     res.json(alert);
   } catch (error) {
-    console.error('Create alert error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -125,7 +113,6 @@ app.put('/api/alerts/:id', requireAuth, async (req, res) => {
   }
 });
 
-// NEW: Analyst Assessment Endpoint
 app.post('/api/alerts/:id/assessment', requireAuth, async (req, res) => {
   try {
     const { decision, reason, newSeverity } = req.body;
@@ -143,7 +130,6 @@ app.post('/api/alerts/:id/assessment', requireAuth, async (req, res) => {
       }
     });
 
-    // Update alert status based on decision
     let newStatus = alert.status;
     if (decision === 'CONFIRMED') newStatus = 'CONFIRMED';
     if (decision === 'DISMISSED') newStatus = 'FALSE_POSITIVE';
@@ -255,7 +241,6 @@ app.get('/api/threats/timeline/:protecteeId', requireAuth, async (req, res) => {
 
 app.get('/api/threats/report/:protecteeId', requireAuth, async (req, res) => {
   try {
-    // Basic report generation
     const alerts = await prisma.alert.findMany({
       where: { protecteeId: req.params.protecteeId },
       orderBy: { createdAt: 'desc' }
@@ -325,7 +310,7 @@ app.get('/api/users', requireAuth, async (req, res) => {
   }
 });
 
-// ============ ANALYZE (Manual Test Endpoint) ============
+// ============ ANALYZE ============
 app.post('/api/analyze', requireAuth, async (req, res) => {
   try {
     const { text, protecteeId } = req.body;
@@ -343,18 +328,12 @@ app.post('/api/analyze', requireAuth, async (req, res) => {
 // ============ DEBUG ============
 app.get('/api/debug', requireAuth, requireRole('ADMIN'), async (req, res) => {
   try {
-    res.json({
-      timestamp: new Date().toISOString(),
-      env: process.env.NODE_ENV,
-      dbStatus: 'connected',
-      nodeVersion: process.version
-    });
+    res.json({ timestamp: new Date().toISOString(), env: process.env.NODE_ENV, dbStatus: 'connected', nodeVersion: process.version });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ============ START SERVER ============
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 OSNIT API running on port ${PORT}`);
