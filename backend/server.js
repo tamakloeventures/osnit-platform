@@ -24,7 +24,7 @@ const dataSourceService = require('./services/dataSourceService');
 const vettingService = require('./services/vettingService');
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({ origin: ['https://osnit-platform.vercel.app', 'http://localhost:3000'], credentials: true }));
 app.use(compression());
 app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
