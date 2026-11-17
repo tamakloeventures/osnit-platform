@@ -188,7 +188,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
     // Use a more robust count to avoid issues with null status fields
     const [totalAlerts, activeProtectees, threatsToday, criticalAlerts] = await Promise.all([
       prisma.alert.count(),
-      prisma.protectee.count({ where: { OR: [{ status: 'ACTIVE' }, { status: null }] } }), // Counts Active OR null
+      prisma.protectee.count({ where: { status: 'ACTIVE' } }), // Counts Active OR null
       prisma.alert.count({ where: { createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
       prisma.alert.count({ where: { severity: 'CRITICAL' } })
     ]);
