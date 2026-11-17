@@ -23,3 +23,12 @@ coverage/
 
 # One-time admin setup script (not for production)
 backend/scripts/create-users.js
+
+# Ignore all .env files except the example
+.env*
+backend/test-scan.js
+
+# Ignore all .env files except the example
+.env*
+backend/test-scan.js
+!.env.example

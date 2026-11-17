@@ -24,7 +24,7 @@ const prisma = new PrismaClient({ adapter });
 // Make Prisma available globally so services can use it
 global.prisma = prisma;
 
-// NOW import services (they depend on global.prisma)
+// NOW import services
 const aiService = require('./services/aiService');
 const collectionService = require('./services/collectionService');
 const vettingService = require('./services/vettingService');
@@ -40,18 +40,10 @@ app.use(express.json({ limit: '10mb' }));
 app.get('/api/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({
-      status: 'OK',
-      timestamp: new Date().toISOString(),
-      database: 'connected',
-    });
+    res.json({ status: 'OK', timestamp: new Date().toISOString(), database: 'connected' });
   } catch (error) {
     console.error('Health check error:', error);
-    res.status(500).json({
-      status: 'Error',
-      database: 'disconnected',
-      error: error.message,
-    });
+    res.status(500).json({ status: 'Error', database: 'disconnected', error: error.message });
   }
 });
 
@@ -59,20 +51,13 @@ app.get('/api/health', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' });
-    }
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     const passwordMatches = await bcrypt.compare(password, user.passwordHash);
-    if (!passwordMatches) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
+    if (!passwordMatches) return res.status(401).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign(
       { userId: user.id, email: user.email, role: user.role, name: user.name },
@@ -80,15 +65,7 @@ app.post('/api/auth/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: error.message });
@@ -96,7 +73,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============ ALERTS ============
-app.get('/api/alerts', async (req, res) => {
+app.get('/api/alerts', requireAuth, async (req, res) => {
   try {
     const alerts = await prisma.alert.findMany({
       include: { protectee: true, vetting: true },
@@ -109,37 +86,25 @@ app.get('/api/alerts', async (req, res) => {
   }
 });
 
-app.post('/api/alerts', async (req, res) => {
+app.post('/api/alerts', requireAuth, async (req, res) => {
   try {
     const {
-      source,
-      content,
-      url,
-      riskScore,
-      protecteeId,
-      author,
-      location,
-      platform,
-      createdBy,
+      source, content, url, riskScore, protecteeId, author,
+      severity, category, context, reviewPriority, scoreBreakdown
     } = req.body;
 
     const alert = await prisma.alert.create({
       data: {
-        source: source || 'Unknown',
-        content: content || 'No content',
-        url: url || null,
-        riskScore: riskScore || 50,
-        aiConfidence: 0.75,
-        status: 'PENDING',
-        protecteeId: protecteeId,
-        author: author || null,
-        location: location || null,
-        platform: platform || null,
-        createdBy: createdBy || 'System',
-        sourceUrl: url || null,
-      },
+        source, content, url, riskScore: riskScore || 0, aiConfidence: 0.5,
+        status: 'PENDING', protecteeId,
+        author: author || 'System', location: 'Unknown', createdBy: 'Manual',
+        severity: severity || 'INFORMATIONAL',
+        category: category || 'none',
+        context: context || 'unresolved',
+        reviewPriority: reviewPriority || 'STANDARD',
+        scoreBreakdown: scoreBreakdown || {}
+      }
     });
-
     res.json(alert);
   } catch (error) {
     console.error('Create alert error:', error);
@@ -147,187 +112,190 @@ app.post('/api/alerts', async (req, res) => {
   }
 });
 
-app.put('/api/alerts/:id', async (req, res) => {
+app.put('/api/alerts/:id', requireAuth, async (req, res) => {
   try {
     const { status, analystNote } = req.body;
     const alert = await prisma.alert.update({
       where: { id: req.params.id },
-      data: { status, analystNote, updatedAt: new Date() },
+      data: { status, analystNote }
     });
     res.json(alert);
   } catch (error) {
-    console.error('Update alert error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// NEW: Analyst Assessment Endpoint
+app.post('/api/alerts/:id/assessment', requireAuth, async (req, res) => {
+  try {
+    const { decision, reason, newSeverity } = req.body;
+    const alert = await prisma.alert.findUnique({ where: { id: req.params.id } });
+    if (!alert) return res.status(404).json({ error: 'Alert not found' });
+
+    const assessment = await prisma.assessment.create({
+      data: {
+        alertId: alert.id,
+        analystId: req.user.userId,
+        decision: decision,
+        previousSeverity: alert.severity,
+        newSeverity: newSeverity || alert.severity,
+        reason: reason || ''
+      }
+    });
+
+    // Update alert status based on decision
+    let newStatus = alert.status;
+    if (decision === 'CONFIRMED') newStatus = 'CONFIRMED';
+    if (decision === 'DISMISSED') newStatus = 'FALSE_POSITIVE';
+    if (decision === 'DOWNGRADED') newStatus = 'INVESTIGATING';
+
+    await prisma.alert.update({
+      where: { id: alert.id },
+      data: { status: newStatus, severity: newSeverity || alert.severity }
+    });
+
+    res.json({ success: true, assessment });
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ PROTECTEES ============
-app.get('/api/protectees', async (req, res) => {
+app.get('/api/protectees', requireAuth, async (req, res) => {
   try {
-    const protectees = await prisma.protectee.findMany({
-      include: { alerts: { take: 5, orderBy: { createdAt: 'desc' } } },
-    });
+    const protectees = await prisma.protectee.findMany({ orderBy: { name: 'asc' } });
     res.json(protectees);
   } catch (error) {
-    console.error('Get protectees error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/protectees', async (req, res) => {
+app.post('/api/protectees', requireAuth, async (req, res) => {
   try {
     const { name, title, keywords, locations } = req.body;
     const protectee = await prisma.protectee.create({
-      data: {
-        name,
-        title,
-        keywords: keywords || [],
-        locations: locations || [],
-        status: 'ACTIVE',
-      },
+      data: { name, title, keywords: keywords || [], locations: locations || [] }
     });
     res.json(protectee);
   } catch (error) {
-    console.error('Create protectee error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ STATS ============
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', requireAuth, async (req, res) => {
   try {
-    const [
-      totalAlerts,
-      pendingAlerts,
-      confirmedAlerts,
-      falsePositives,
-      totalProtectees,
-    ] = await Promise.all([
+    const [totalAlerts, activeProtectees, threatsToday, criticalAlerts] = await Promise.all([
       prisma.alert.count(),
-      prisma.alert.count({ where: { status: 'PENDING' } }),
-      prisma.alert.count({ where: { status: 'CONFIRMED' } }),
-      prisma.alert.count({ where: { status: 'FALSE_POSITIVE' } }),
-      prisma.protectee.count(),
+      prisma.protectee.count({ where: { status: 'ACTIVE' } }),
+      prisma.alert.count({ where: { createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } } }),
+      prisma.alert.count({ where: { severity: 'CRITICAL' } })
     ]);
-    res.json({
-      totalAlerts,
-      pendingAlerts,
-      confirmedAlerts,
-      falsePositives,
-      totalProtectees,
-    });
+    res.json({ totalAlerts, activeProtectees, threatsToday, criticalAlerts });
   } catch (error) {
-    console.error('Stats error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ VETTING ============
-app.get('/api/vetting/pending', async (req, res) => {
+app.get('/api/vetting/pending', requireAuth, async (req, res) => {
   try {
-    const alerts = await vettingService.getPendingAlerts();
-    res.json(alerts);
+    const pending = await prisma.vetting.findMany({
+      where: { status: 'PENDING' },
+      include: { alert: { include: { protectee: true } }, analyst: true }
+    });
+    res.json(pending);
   } catch (error) {
-    console.error('Vetting error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.post('/api/vetting/review/:id', requireAuth, async (req, res) => {
   try {
-    const { decision, notes } = req.body;
-    const { id } = req.params;
-    const result = await vettingService.reviewAlert(id, req.user.userId, decision, notes);
+    const result = await vettingService.processReview(req.params.id, req.body, req.user);
     res.json(result);
   } catch (error) {
-    console.error('Review error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/vetting/stats', async (req, res) => {
+app.get('/api/vetting/stats', requireAuth, async (req, res) => {
   try {
-    const stats = await vettingService.getVettingStats();
+    const stats = await vettingService.getStats();
     res.json(stats);
   } catch (error) {
-    console.error('Vetting stats error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ THREATS ============
-app.get('/api/threats/search/:protecteeId', async (req, res) => {
+app.get('/api/threats/search/:protecteeId', requireAuth, async (req, res) => {
   try {
-    const { protecteeId } = req.params;
-    const { keyword } = req.query;
-    const results = await vettingService.searchPastThreats(protecteeId, { keyword });
+    const results = await prisma.threatSearchIndex.findMany({
+      where: { protecteeId: req.params.protecteeId },
+      orderBy: { date: 'desc' }
+    });
     res.json(results);
   } catch (error) {
-    console.error('Search error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/threats/timeline/:protecteeId', async (req, res) => {
+app.get('/api/threats/timeline/:protecteeId', requireAuth, async (req, res) => {
   try {
-    const { protecteeId } = req.params;
-    const timeline = await vettingService.getThreatTimeline(protecteeId);
+    const timeline = await prisma.threatSearchIndex.findMany({
+      where: { protecteeId: req.params.protecteeId },
+      orderBy: { date: 'asc' }
+    });
     res.json(timeline);
   } catch (error) {
-    console.error('Timeline error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.get('/api/threats/report/:protecteeId', async (req, res) => {
+app.get('/api/threats/report/:protecteeId', requireAuth, async (req, res) => {
   try {
-    const { protecteeId } = req.params;
-    const report = await vettingService.generateRiskReport(protecteeId);
-    res.json(report);
+    // Basic report generation
+    const alerts = await prisma.alert.findMany({
+      where: { protecteeId: req.params.protecteeId },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ totalAlerts: alerts.length, alerts });
   } catch (error) {
-    console.error('Report error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ COLLECTED DATA ============
-app.get('/api/collected', async (req, res) => {
+app.get('/api/collected', requireAuth, async (req, res) => {
   try {
     const data = await prisma.collectedData.findMany({
-      where: { isProcessed: true },
-      include: { aiAnalysis: true, protectee: true },
-      orderBy: { collectedAt: 'desc' },
-      take: 50,
+      orderBy: { collectedAt: 'desc' }, take: 100,
+      include: { aiAnalysis: true, protectee: true }
     });
     res.json(data);
   } catch (error) {
-    console.error('Collected data error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// ============ MONITORING ============
-app.get('/api/monitoring/configs', async (req, res) => {
+// ============ MONITORING CONFIG ============
+app.get('/api/monitoring/configs', requireAuth, async (req, res) => {
   try {
     const configs = await prisma.monitoringConfig.findMany({
-      include: { protectee: true },
+      include: { protectee: true }
     });
     res.json(configs);
   } catch (error) {
-    console.error('Monitoring configs error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-app.post('/api/monitoring/configs', async (req, res) => {
+app.post('/api/monitoring/configs', requireAuth, async (req, res) => {
   try {
-    const { name, sourceType, keywords, protecteeId } = req.body;
-    const result = await prisma.monitoringConfig.create({
-      data: { name, sourceType, keywords, protecteeId, isActive: true },
-    });
-    res.json(result);
+    const config = await prisma.monitoringConfig.create({ data: req.body });
+    res.json(config);
   } catch (error) {
-    console.error('Create monitoring config error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -336,30 +304,12 @@ app.post('/api/monitoring/configs', async (req, res) => {
 app.post('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
   try {
     const { email, name, password, role } = req.body;
-
-    if (!email || !name || !password) {
-      return res.status(400).json({ error: 'Email, name, and password required' });
-    }
-
-    const allowedRoles = ['ADMIN', 'ANALYST', 'VIEWER'];
-    const finalRole = role || 'ANALYST';
-    if (!allowedRoles.includes(finalRole)) {
-      return res.status(400).json({ error: 'Invalid role' });
-    }
-
     const passwordHash = await bcrypt.hash(password, 10);
-
     const user = await prisma.user.create({
-      data: { email, name, passwordHash, role: finalRole },
+      data: { email, name, passwordHash, role: role || 'ANALYST' }
     });
-    res.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    });
+    res.json({ id: user.id, email: user.email, name: user.name, role: user.role });
   } catch (error) {
-    console.error('Create user error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -367,61 +317,47 @@ app.post('/api/users', requireAuth, requireRole('ADMIN'), async (req, res) => {
 app.get('/api/users', requireAuth, async (req, res) => {
   try {
     const users = await prisma.user.findMany({
-      select: { id: true, email: true, name: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, createdAt: true }
     });
     res.json(users);
   } catch (error) {
-    console.error('Get users error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// ============ AI ANALYSIS ============
-app.post('/api/analyze', async (req, res) => {
+// ============ ANALYZE (Manual Test Endpoint) ============
+app.post('/api/analyze', requireAuth, async (req, res) => {
   try {
-    const { text, protecteeName } = req.body;
-    const result = await aiService.analyzeContent(text, protecteeName);
+    const { text, protecteeId } = req.body;
+    let protecteeObj = null;
+    if (protecteeId) {
+      protecteeObj = await prisma.protectee.findUnique({ where: { id: protecteeId } });
+    }
+    const result = await aiService.analyzeContent(text, protecteeObj || 'Unknown');
     res.json(result);
   } catch (error) {
-    console.error('AI analysis error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ DEBUG ============
-app.get('/api/debug', async (req, res) => {
+app.get('/api/debug', requireAuth, requireRole('ADMIN'), async (req, res) => {
   try {
-    const latest = await prisma.alert.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        source: true,
-        content: true,
-        author: true,
-        location: true,
-        createdAt: true,
-      },
-    });
     res.json({
-      latestAlert: latest,
-      serverTime: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
+      env: process.env.NODE_ENV,
+      dbStatus: 'connected',
+      nodeVersion: process.version
     });
   } catch (error) {
-    console.error('Debug error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 // ============ START SERVER ============
-const PORT = process.env.PORT || 5000;
-
-try {
-  collectionService.startScheduledCollection();
-} catch (error) {
-  console.error('Failed to start scheduled collection:', error);
-}
-
-app.listen(PORT, () => {
-  console.log(`🚀 OSNIT Backend running on port ${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 OSNIT API running on port ${PORT}`);
+  console.log(`🔒 Auth enabled on sensitive routes`);
+  console.log(`🤖 Threat Detection Engine v1 loaded`);
 });

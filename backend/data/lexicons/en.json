@@ -1,0 +1,91 @@
+{
+  "language": "en",
+  "categories": {
+    "direct_threat": {
+      "weight": 80,
+      "description": "Explicit threats of physical harm, death, or attack.",
+      "keywords": [
+        "kill", "murder", "assassinate", "shoot", "bomb", "attack", "destroy",
+        "harm", "hurt", "beat", "stab", "execute", "slaughter", "eliminate",
+        "dead", "die", "death threat", "blood", "weapon", "gun", "knife"
+      ]
+    },
+    "preparation": {
+      "weight": 60,
+      "description": "Indicators of planning, logistics, or acquiring weapons.",
+      "keywords": [
+        "bought a gun", "acquired weapon", "ammunition", "loaded", "cocked",
+        "surveillance", "followed him", "followed her", "know his route",
+        "know her route", "schedule", "security detail", "blind spot",
+        "waiting outside", "stakeout", "reconnaissance", "recon"
+      ]
+    },
+    "surveillance": {
+      "weight": 50,
+      "description": "Stalking, watching, or tracking the target.",
+      "keywords": [
+        "watching him", "watching her", "tracking", "following", "spying",
+        "tailing", "monitoring his house", "monitoring her house", "stalking"
+      ]
+    },
+    "mobilization": {
+      "weight": 55,
+      "description": "Calls for group action, riots, or coordinated attacks.",
+      "keywords": [
+        "we will attack", "let's get him", "let's get her", "mobilize",
+        "rally the boys", "burn down", "storm the", "riot", "uprising",
+        "coordinate", "gang", "crew"
+      ]
+    },
+    "extortion": {
+      "weight": 45,
+      "description": "Blackmail, kidnapping, or coercion.",
+      "keywords": [
+        "kidnap", "abduct", "ransom", "blackmail", "extort", "pay up",
+        "we have your family", "hostage", "leverage"
+      ]
+    },
+    "doxxing": {
+      "weight": 30,
+      "description": "Exposure of private information to enable targeting.",
+      "keywords": [
+        "dox", "doxx", "home address", "phone number", "leak his", "leak her",
+        "publish his address", "publish her address", "where he lives", "where she lives"
+      ]
+    },
+    "political_criticism": {
+      "weight": 5,
+      "description": "Harsh political criticism, usually not a physical threat.",
+      "keywords": [
+        "destroy the party", "ruin the country", "traitor", "corrupt",
+        "liar", "thief", "incompetent", "resign", "vote him out", "vote her out"
+      ]
+    }
+  },
+  "context_modifiers": {
+    "news_reporting": {
+      "multiplier": 0.2,
+      "keywords": ["reported", "according to", "news", "police said", "investigators", "allegedly", "claims"]
+    },
+    "historical": {
+      "multiplier": 0.1,
+      "keywords": ["in 1999", "last year", "historically", "past", "previous", "decades ago"]
+    },
+    "hypothetical": {
+      "multiplier": 0.3,
+      "keywords": ["if", "would", "could", "hypothetically", "imagine", "suppose", "what if"]
+    },
+    "denial": {
+      "multiplier": 0.1,
+      "keywords": ["denies", "denied", "never", "did not", "didn't", "not going to", "no intention"]
+    },
+    "quoted": {
+      "multiplier": 0.5,
+      "keywords": ["said", "stated", "told", "quote", "according to him", "according to her"]
+    },
+    "sarcasm": {
+      "multiplier": 0.3,
+      "keywords": ["yeah right", "sure", "oh great", "lovely", "brilliant", "wonderful"]
+    }
+  }
+}

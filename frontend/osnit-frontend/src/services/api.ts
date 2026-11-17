@@ -30,6 +30,7 @@ export const getStats = () => api.get('/stats');
 export const createProtectee = (data: any) => api.post('/protectees', data);
 export const createAlert = (data: any) => api.post('/alerts', data);
 export const updateAlert = (id: string, data: any) => api.put(`/alerts/${id}`, data);
+export const submitAssessment = (id: string, data: any) => api.post(`/alerts/${id}/assessment`, data);
 export const getVettingPending = () => api.get('/vetting/pending');
 export const reviewAlert = (id: string, data: any) => api.post(`/vetting/review/${id}`, data);
 export const getThreatSearch = (protecteeId: string, params: any) => api.get(`/threats/search/${protecteeId}`, { params });

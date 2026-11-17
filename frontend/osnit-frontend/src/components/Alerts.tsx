@@ -16,8 +16,12 @@ import {
   DialogContent,
   TextField,
   CircularProgress,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
-import { getAlerts, updateAlert } from '../services/api';
+import { getAlerts, submitAssessment } from '../services/api';
 
 interface Alert {
   id: string;
@@ -27,15 +31,15 @@ interface Alert {
   riskScore: number;
   status: string;
   analystNote: string;
-  protectee: {
-    name: string;
-  };
+  protectee: { name: string; };
   createdAt: string;
   author?: string;
   location?: string;
-  platform?: string;
-  createdBy?: string;
-  sourceUrl?: string;
+  severity?: string;
+  category?: string;
+  context?: string;
+  reviewPriority?: string;
+  scoreBreakdown?: any[];
 }
 
 const Alerts: React.FC = () => {
@@ -60,13 +64,28 @@ const Alerts: React.FC = () => {
     }
   };
 
-  const handleStatusChange = async (id: string, status: string) => {
+  const handleDecision = async (decision: string) => {
+    if (!selectedAlert) return;
     try {
-      await updateAlert(id, { status, analystNote });
+      await submitAssessment(selectedAlert.id, {
+        decision,
+        reason: analystNote,
+        newSeverity: decision === 'DOWNGRADED' ? 'LOW' : undefined
+      });
       setDialogOpen(false);
       fetchAlerts();
     } catch (error) {
-      console.error('Error updating alert:', error);
+      console.error('Error submitting assessment:', error);
+    }
+  };
+
+  const getSeverityColor = (severity?: string) => {
+    switch (severity) {
+      case 'CRITICAL': return 'error';
+      case 'HIGH': return 'warning';
+      case 'MODERATE': return 'info';
+      case 'LOW': return 'success';
+      default: return 'default';
     }
   };
 
@@ -78,12 +97,6 @@ const Alerts: React.FC = () => {
       INVESTIGATING: 'info',
     };
     return colors[status] || 'default';
-  };
-
-  const getRiskColor = (score: number) => {
-    if (score >= 80) return 'error';
-    if (score >= 60) return 'warning';
-    return 'success';
   };
 
   if (loading) {
@@ -107,9 +120,9 @@ const Alerts: React.FC = () => {
               <TableCell>Source</TableCell>
               <TableCell>Content</TableCell>
               <TableCell>Protectee</TableCell>
+              <TableCell>Severity</TableCell>
               <TableCell>Risk</TableCell>
               <TableCell>Status</TableCell>
-              <TableCell>Time</TableCell>
               <TableCell>Action</TableCell>
             </TableRow>
           </TableHead>
@@ -135,10 +148,13 @@ const Alerts: React.FC = () => {
                   <TableCell>{alert.protectee?.name || 'Unknown'}</TableCell>
                   <TableCell>
                     <Chip
-                      label={`${alert.riskScore || 0}%`}
-                      color={getRiskColor(alert.riskScore || 0)}
+                      label={alert.severity || 'UNKNOWN'}
+                      color={getSeverityColor(alert.severity)}
                       size="small"
                     />
+                  </TableCell>
+                  <TableCell>
+                    <Chip label={`${alert.riskScore || 0}/100`} size="small" />
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -148,15 +164,12 @@ const Alerts: React.FC = () => {
                     />
                   </TableCell>
                   <TableCell>
-                    {alert.createdAt ? new Date(alert.createdAt).toLocaleDateString() : 'N/A'}
-                  </TableCell>
-                  <TableCell>
                     <Button
                       size="small"
                       variant="outlined"
                       onClick={() => {
                         setSelectedAlert(alert);
-                        setAnalystNote(alert.analystNote || '');
+                        setAnalystNote('');
                         setDialogOpen(true);
                       }}
                     >
@@ -175,24 +188,43 @@ const Alerts: React.FC = () => {
         <DialogContent>
           {selectedAlert && (
             <Box sx={{ mt: 2 }}>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Chip label={`Severity: ${selectedAlert.severity || 'UNKNOWN'}`} color={getSeverityColor(selectedAlert.severity)} />
+                <Chip label={`Category: ${selectedAlert.category || 'none'}`} variant="outlined" />
+                <Chip label={`Priority: ${selectedAlert.reviewPriority || 'STANDARD'}`} />
+              </Box>
+
               <Typography variant="subtitle2" color="text.secondary">
-                Source: {selectedAlert.source}
-              </Typography>
-              <Typography variant="subtitle2" color="text.secondary">
-                Author: {selectedAlert.author ?? 'Not available'}
-              </Typography>
-              <Typography variant="subtitle2" color="text.secondary">
-                Location: {selectedAlert.location ?? 'Not available'}
+                Source: {selectedAlert.source} | Author: {selectedAlert.author || 'Unknown'}
               </Typography>
               <Typography variant="subtitle2" color="text.secondary">
                 Protectee: {selectedAlert.protectee?.name || 'Unknown'}
               </Typography>
-              <Typography variant="subtitle2" color="text.secondary">
-                Risk Score: {selectedAlert.riskScore}%
-              </Typography>
+              
               <Paper sx={{ p: 2, mt: 2, bgcolor: 'background.default' }}>
                 <Typography>{selectedAlert.content}</Typography>
               </Paper>
+
+              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>AI Explainability</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Context: {selectedAlert.context || 'unresolved'}
+              </Typography>
+              
+              {selectedAlert.scoreBreakdown && selectedAlert.scoreBreakdown.length > 0 && (
+                <List dense>
+                  {selectedAlert.scoreBreakdown.map((item, idx) => (
+                    <ListItem key={idx}>
+                      <ListItemText 
+                        primary={`${item.factor}: ${item.value}`} 
+                        secondary={item.reason} 
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+
+              <Divider sx={{ my: 2 }} />
+
               <TextField
                 fullWidth
                 multiline
@@ -206,23 +238,23 @@ const Alerts: React.FC = () => {
                 <Button
                   variant="contained"
                   color="error"
-                  onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'CONFIRMED')}
+                  onClick={() => handleDecision('CONFIRMED')}
                 >
                   Confirm Threat
                 </Button>
                 <Button
                   variant="contained"
-                  color="success"
-                  onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'FALSE_POSITIVE')}
+                  color="warning"
+                  onClick={() => handleDecision('DOWNGRADED')}
                 >
-                  False Positive
+                  Downgrade
                 </Button>
                 <Button
                   variant="contained"
-                  color="info"
-                  onClick={() => selectedAlert && handleStatusChange(selectedAlert.id, 'INVESTIGATING')}
+                  color="success"
+                  onClick={() => handleDecision('DISMISSED')}
                 >
-                  Investigate
+                  Dismiss (False Positive)
                 </Button>
                 <Button
                   variant="outlined"

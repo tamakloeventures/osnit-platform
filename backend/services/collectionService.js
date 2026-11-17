@@ -81,7 +81,7 @@ class CollectionService {
       });
 
       const protectee = await prisma.protectee.findUnique({ where: { id: data.protecteeId } });
-      const analysis = await this.analyzeContent(data.content, protectee.name);
+      const analysis = await require("./aiService").analyzeContent(data.content, protectee);
 
       await prisma.aiAnalysis.create({
         data: {

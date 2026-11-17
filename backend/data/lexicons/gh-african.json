@@ -1,0 +1,57 @@
+{
+  "language": "gh-african",
+  "categories": {
+    "direct_threat": {
+      "weight": 80,
+      "description": "Explicit threats in local languages/Pidgin.",
+      "keywords": [
+        "bɛku me", "bɛku no", "bɛku wo", "I go kill am", "I go shoot am",
+        "we go kill you", "commot him", "finish him", "wipe him out",
+        "kum no", "ku no", "shoot no", "bomb no"
+      ]
+    },
+    "preparation": {
+      "weight": 60,
+      "description": "Preparation indicators in Pidgin/local languages.",
+      "keywords": [
+        "I get gun", "we get weapon", "I buy am", "load am", "cock am",
+        "I dey follow am", "I know where he dey", "I sabi him house"
+      ]
+    },
+    "surveillance": {
+      "weight": 50,
+      "description": "Watching/tracking in local languages.",
+      "keywords": [
+        "I dey watch am", "I dey follow am", "me ho no", "we dey monitor am"
+      ]
+    },
+    "mobilization": {
+      "weight": 55,
+      "description": "Calls to group action.",
+      "keywords": [
+        "make we go", "let's move", "gather the boys", "boys dem", "we go attack"
+      ]
+    },
+    "political_criticism": {
+      "weight": 5,
+      "description": "Political criticism / insults.",
+      "keywords": [
+        "he be thief", "he be liar", "he no get sense", "we no want am"
+      ]
+    }
+  },
+  "context_modifiers": {
+    "news_reporting": {
+      "multiplier": 0.2,
+      "keywords": ["news", "radio", "report", "police talk", "dem talk say"]
+    },
+    "hypothetical": {
+      "multiplier": 0.3,
+      "keywords": ["if", "suppose", "maybe"]
+    },
+    "denial": {
+      "multiplier": 0.1,
+      "keywords": ["I no go do am", "I no go hurt am", "never", "no be me"]
+    }
+  }
+}
