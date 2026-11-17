@@ -2,7 +2,6 @@ const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const cron = require('node-cron');
 
-// Initialize Prisma safely. If it hangs, the connect_timeout in DATABASE_URL will stop it.
 let prisma = global.prisma;
 if (!prisma) {
   const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
@@ -10,12 +9,9 @@ if (!prisma) {
 }
 
 class CollectionService {
-  constructor() {
-    // No imports here. Everything is lazy-loaded inside methods to prevent startup crashes.
-  }
+  constructor() {}
 
   async analyzeContent(text, protecteeName) {
-    // Temporary safe keyword check. No external APIs.
     const threatKeywords = ['kill', 'attack', 'bomb', 'shoot', 'destroy'];
     const hasThreat = threatKeywords.some(kw => text.toLowerCase().includes(kw));
     return {
@@ -28,20 +24,36 @@ class CollectionService {
   }
 
   async collectRSS(feedUrls, protecteeId) {
-    // Lazy-load the parser only when this method is called
     const Parser = require('rss-parser');
-    const parser = new Parser();
+    // Add headers to avoid being blocked, and handle bad XML
+    const parser = new Parser({
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      customFields: { item: ['description'] }
+    });
+    
     const results = [];
     const protectee = await prisma.protectee.findUnique({ where: { id: protecteeId } });
 
     if (!protectee) return [];
+
+    const searchTerms = [
+      protectee.name,
+      protectee.title,
+      ...(protectee.keywords || [])
+    ].filter(Boolean).map(t => t.toLowerCase());
+
+    console.log(`Scanning for: ${searchTerms.join(', ')}`);
 
     for (const url of feedUrls) {
       try {
         const feed = await parser.parseURL(url);
         for (const item of feed.items) {
           const content = (item.title || '') + ' ' + (item.contentSnippet || '');
-          if (protectee.name && content.toLowerCase().includes(protectee.name.toLowerCase())) {
+          const lowerContent = content.toLowerCase();
+          
+          const isMatch = searchTerms.some(term => lowerContent.includes(term));
+
+          if (isMatch) {
             results.push({
               source: 'News',
               sourceId: item.guid || item.link,
@@ -81,18 +93,19 @@ class CollectionService {
       });
 
       const protectee = await prisma.protectee.findUnique({ where: { id: data.protecteeId } });
-      const analysis = await require("./aiService").analyzeContent(data.content, protectee);
+      const aiService = require('./aiService');
+      const analysis = await aiService.analyzeContent(data.content, protectee);
 
       await prisma.aiAnalysis.create({
         data: {
           collectedDataId: collected.id,
           sentiment: 'neutral',
-          threatLevel: analysis.threatLevel,
-          threatScore: analysis.threatScore,
+          threatLevel: analysis.severity,
+          threatScore: analysis.riskScore,
           keywords: analysis.keywords,
           confidence: analysis.confidence,
           summary: analysis.summary,
-          aiModel: 'keyword-fallback',
+          aiModel: analysis.aiModel || 'keyword-fallback',
         }
       });
 
@@ -101,13 +114,13 @@ class CollectionService {
         data: { isProcessed: true }
       });
 
-      if (analysis.threatLevel === 'high') {
+      if (['MODERATE', 'HIGH', 'CRITICAL'].includes(analysis.severity)) {
         const alert = await prisma.alert.create({
           data: {
             source: data.source,
             content: data.content,
             url: data.url,
-            riskScore: analysis.threatScore,
+            riskScore: analysis.riskScore,
             aiConfidence: analysis.confidence,
             status: 'PENDING',
             protecteeId: data.protecteeId,
@@ -115,10 +128,14 @@ class CollectionService {
             location: 'Unknown', 
             createdBy: 'AI System',
             sourceUrl: data.url,
+            severity: analysis.severity,
+            category: analysis.category,
+            context: analysis.context,
+            reviewPriority: analysis.reviewPriority,
+            scoreBreakdown: analysis.scoreBreakdown
           }
         });
 
-        // Lazy-load email only if a threat is found
         if (process.env.EMAIL_USER && process.env.EMAIL_PASS && process.env.ALERT_EMAIL) {
           const nodemailer = require('nodemailer');
           const transporter = nodemailer.createTransport({
@@ -128,16 +145,15 @@ class CollectionService {
           const mailOptions = {
             from: process.env.EMAIL_USER,
             to: process.env.ALERT_EMAIL,
-            subject: `🚨 HIGH RISK THREAT DETECTED: ${protectee.name}`,
-            text: `A potential threat was detected against ${protectee.name}.\n\nContent: ${data.content}\nLink: ${data.url}\n\nPlease log in to the OSNIT dashboard to review.`
+            subject: `🚨 ${analysis.severity} THREAT DETECTED: ${protectee.name}`,
+            text: `A potential threat was detected against ${protectee.name}.\n\nContent: ${data.content}\nLink: ${data.url}\n\nSeverity: ${analysis.severity}\n\nPlease log in to review.`
           };
           transporter.sendMail(mailOptions, (err, info) => {
             if (err) console.error('Email Alert Error:', err);
             else console.log('✅ Email Alert Sent:', info.response);
           });
         }
-
-        console.log(`🔴 Alert created & Email Sent: ${alert.id}`);
+        console.log(`🔴 Alert created: ${alert.id}`);
       }
 
       return collected;
@@ -150,13 +166,11 @@ class CollectionService {
     cron.schedule('0 * * * *', async () => {
       console.log('🔄 Running hourly news collection...');
       const configs = await prisma.monitoringConfig.findMany({ where: { isActive: true } });
+      const feeds = ["https://www.myjoyonline.com/feed/", "https://www.adomonline.com/feed/", "https://www.ghanaweb.com/GhanaHomePage/rss/news.xml", "https://3news.com/feed/"];
       for (const config of configs) {
-        if (config.sourceType === 'News') {
-          const feeds = config.config?.feeds || ['https://feeds.bbci.co.uk/news/world/rss.xml'];
-          const newItems = await this.collectRSS(feeds, config.protecteeId);
-          for (const item of newItems) {
-            await this.storeCollectedData(item);
-          }
+        const newItems = await this.collectRSS(feeds, config.protecteeId);
+        for (const item of newItems) {
+          await this.storeCollectedData(item);
         }
       }
     });
