@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Paper, CircularProgress, Chip, Button
 } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts';
@@ -12,6 +13,7 @@ const Dashboard: React.FC = () => {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [protectees, setProtectees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -48,7 +50,7 @@ const Dashboard: React.FC = () => {
   const COLORS = ['#f59e0b', '#3b82f6', '#ef4444', '#22c55e'];
   const recentAlerts = alerts.slice(0, 3);
 
-  const StatCard = ({ title, value, icon, sub, link }: any) => (
+  const StatCard = ({ title, value, icon, sub, onClick }: any) => (
     <Paper sx={{ p: 2, flex: 1, minWidth: '200px', bgcolor: '#1e293b', color: 'white' }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <Box>
@@ -59,7 +61,7 @@ const Dashboard: React.FC = () => {
         <Typography variant="h3" sx={{ fontSize: '2rem' }}>{icon}</Typography>
       </Box>
       <Box sx={{ mt: 2, textAlign: 'right' }}>
-        <Button size="small" sx={{ color: '#3b82f6', textTransform: 'none' }}>{link}</Button>
+        <Button size="small" sx={{ color: '#3b82f6', textTransform: 'none' }} onClick={onClick}>Click to view</Button>
       </Box>
     </Paper>
   );
@@ -76,10 +78,10 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Row */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-        <StatCard title="Total Alerts" value={stats.totalAlerts || 0} icon="⚠️" sub="View all alerts" link="Click to view" />
-        <StatCard title="Pending Review" value={stats.threatsToday || 0} icon="📈" sub="Requires your attention" link="Click to view" />
-        <StatCard title="Confirmed Threats" value={stats.criticalAlerts || 0} icon="🚫" sub="Verified threats" link="Click to view" />
-        <StatCard title="Active Protectees" value={stats.activeProtectees || 0} icon="👥" sub="People protected" link="Click to view" />
+        <StatCard title="Total Alerts" value={stats.totalAlerts || 0} icon="⚠️" sub="View all alerts" onClick={() => navigate('/alerts')} />
+        <StatCard title="Pending Review" value={stats.threatsToday || 0} icon="📈" sub="Requires your attention" onClick={() => navigate('/alerts')} />
+        <StatCard title="Confirmed Threats" value={stats.criticalAlerts || 0} icon="🚫" sub="Verified threats" onClick={() => navigate('/alerts')} />
+        <StatCard title="Active Protectees" value={stats.activeProtectees || 0} icon="👥" sub="People protected" onClick={() => navigate('/protectees')} />
       </Box>
 
       {/* Charts Row */}
@@ -132,13 +134,13 @@ const Dashboard: React.FC = () => {
         <Paper sx={{ p: 2, flex: 2, minWidth: '400px', bgcolor: '#1e293b', color: 'white' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
             <Typography variant="h6">Recent Alerts</Typography>
-            <Button size="small" sx={{ color: '#3b82f6' }}>VIEW ALL</Button>
+            <Button size="small" sx={{ color: '#3b82f6' }} onClick={() => navigate('/alerts')}>VIEW ALL</Button>
           </Box>
           {recentAlerts.length === 0 ? (
             <Typography color="text.secondary">No alerts yet</Typography>
           ) : (
             recentAlerts.map(alert => (
-              <Box key={alert.id} sx={{ p: 1, mb: 1 }}>
+              <Box key={alert.id} sx={{ p: 1, mb: 1, cursor: 'pointer' }} onClick={() => navigate('/alerts')}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#f59e0b' }} />
@@ -156,13 +158,13 @@ const Dashboard: React.FC = () => {
         <Paper sx={{ p: 2, flex: 1, minWidth: '300px', bgcolor: '#1e293b', color: 'white' }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
             <Typography variant="h6">Active Protectees</Typography>
-            <Button size="small" sx={{ color: '#3b82f6' }}>VIEW ALL</Button>
+            <Button size="small" sx={{ color: '#3b82f6' }} onClick={() => navigate('/protectees')}>VIEW ALL</Button>
           </Box>
           {protectees.length === 0 ? (
              <Typography color="text.secondary">No protectees yet</Typography>
           ) : (
             protectees.slice(0, 3).map(p => (
-              <Box key={p.id} sx={{ mb: 2 }}>
+              <Box key={p.id} sx={{ mb: 2, cursor: 'pointer' }} onClick={() => navigate('/protectees')}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 'bold' }}>{p.name}</Typography>
