@@ -38,6 +38,44 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ============ LIVE RESEARCH ============
+app.get('/api/research', requireAuth, async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query) return res.status(400).json({ error: 'Search query required' });
+
+    const Parser = require('rss-parser');
+    const parser = new Parser({ headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+    
+    const feed = await parser.parseURL(url);
+    
+    const results = await Promise.all(feed.items.slice(0, 10).map(async (item) => {
+      const text = (item.title || '') + ' ' + (item.contentSnippet || '');
+      const analysis = await aiService.analyzeContent(text, { name: query, keywords: [], locations: [] });
+      
+      return {
+        title: item.title,
+        link: item.link,
+        pubDate: item.pubDate,
+        source: item.creator || 'Google News',
+        content: item.contentSnippet,
+        aiAnalysis: {
+          severity: analysis.severity,
+          riskScore: analysis.riskScore,
+          explanation: analysis.explanation,
+          category: analysis.category
+        }
+      };
+    }));
+
+    res.json({ query, results });
+  } catch (error) {
+    console.error('Research error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ============ AUTHENTICATION ============
 app.post('/api/auth/login', async (req, res) => {
   try {
@@ -289,7 +327,6 @@ app.post('/api/collect/scan/:protecteeId', requireAuth, async (req, res) => {
     const protectee = await prisma.protectee.findUnique({ where: { id: req.params.protecteeId } });
     if (!protectee) return res.status(404).json({ error: 'Protectee not found' });
 
-    // Use Google News RSS for reliable target searching
     const googleNewsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(protectee.name)}&hl=en-US&gl=US&ceid=US:en`;
     
     collectionService.collectRSS([googleNewsUrl], protectee.id).then(async (results) => {
@@ -369,42 +406,4 @@ app.post('/api/analyze', requireAuth, async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 OSNIT API running on port ${PORT}`);
-});
-// ============ LIVE RESEARCH ============
-app.get('/api/research', requireAuth, async (req, res) => {
-  try {
-    const query = req.query.q;
-    if (!query) return res.status(400).json({ error: 'Search query required' });
-
-    const Parser = require('rss-parser');
-    const parser = new Parser({ headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-    
-    const feed = await parser.parseURL(url);
-    
-    // Analyze the top 10 results using the AI engine
-    const results = await Promise.all(feed.items.slice(0, 10).map(async (item) => {
-      const text = (item.title || '') + ' ' + (item.contentSnippet || '');
-      const analysis = await aiService.analyzeContent(text, { name: query, keywords: [], locations: [] });
-      
-      return {
-        title: item.title,
-        link: item.link,
-        pubDate: item.pubDate,
-        source: item.creator || 'Google News',
-        content: item.contentSnippet,
-        aiAnalysis: {
-          severity: analysis.severity,
-          riskScore: analysis.riskScore,
-          explanation: analysis.explanation,
-          category: analysis.category
-        }
-      };
-    }));
-
-    res.json({ query, results });
-  } catch (error) {
-    console.error('Research error:', error);
-    res.status(500).json({ error: error.message });
-  }
 });
