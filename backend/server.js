@@ -46,11 +46,17 @@ app.get('/api/research', requireAuth, async (req, res) => {
 
     const Parser = require('rss-parser');
     const parser = new Parser({ headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
+    
+    // The "when:1d" operator forces Google News to only return articles from the last 24 hours
+    const searchQuery = `${query} when:1d`;
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
     
     const feed = await parser.parseURL(url);
     
-    const results = await Promise.all(feed.items.slice(0, 10).map(async (item) => {
+    // Sort by date descending to ensure newest are first
+    const sortedItems = feed.items.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+
+    const results = await Promise.all(sortedItems.slice(0, 10).map(async (item) => {
       const text = (item.title || '') + ' ' + (item.contentSnippet || '');
       const analysis = await aiService.analyzeContent(text, { name: query, keywords: [], locations: [] });
       
@@ -327,7 +333,8 @@ app.post('/api/collect/scan/:protecteeId', requireAuth, async (req, res) => {
     const protectee = await prisma.protectee.findUnique({ where: { id: req.params.protecteeId } });
     if (!protectee) return res.status(404).json({ error: 'Protectee not found' });
 
-    const googleNewsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(protectee.name)}&hl=en-US&gl=US&ceid=US:en`;
+    const searchQuery = `${protectee.name} when:1d`;
+    const googleNewsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
     
     collectionService.collectRSS([googleNewsUrl], protectee.id).then(async (results) => {
       console.log(`Scan complete for ${protectee.name}: ${results.length} news items`);
