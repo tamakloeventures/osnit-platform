@@ -26,16 +26,19 @@ class CollectionService {
       try {
         const feed = await parser.parseURL(url);
         for (const item of feed.items) {
-          const content = (item.title || '') + ' ' + (item.contentSnippet || '');
-          
+          // Extract source name from the URL or feed title
+          let sourceName = feed.title || 'News Source';
+          if (item.source && item.source._) sourceName = item.source._;
+
           results.push({
-            source: 'News',
+            source: sourceName,
             sourceId: item.guid || item.link,
-            content: content,
+            content: (item.title || '') + ' ' + (item.contentSnippet || ''),
             url: item.link,
-            author: item.creator || 'News Source',
+            author: item.creator || item.author || 'Unknown',
             postedDate: new Date(item.pubDate || new Date()),
             protecteeId: protecteeId,
+            location: 'Unknown' // We will extract this in the AI step
           });
         }
       } catch (err) {
@@ -68,8 +71,15 @@ class CollectionService {
       const protectee = await prisma.protectee.findUnique({ where: { id: data.protecteeId } });
       const aiService = require('./aiService');
       
-      // THIS IS THE AI ENGINE RUNNING
       const analysis = await aiService.analyzeContent(data.content, protectee);
+
+      // Try to guess the location from the protectee's known locations
+      let detectedLocation = data.location || 'Unknown';
+      if (protectee.locations && protectee.locations.length > 0) {
+        const lowerContent = data.content.toLowerCase();
+        const foundLoc = protectee.locations.find(loc => lowerContent.includes(loc.toLowerCase()));
+        if (foundLoc) detectedLocation = foundLoc;
+      }
 
       await prisma.aiAnalysis.create({
         data: {
@@ -89,19 +99,18 @@ class CollectionService {
         data: { isProcessed: true }
       });
 
-      // Only create an alert if the AI score is MODERATE or higher
       if (['MODERATE', 'HIGH', 'CRITICAL'].includes(analysis.severity)) {
         const alert = await prisma.alert.create({
           data: {
-            source: data.source,
+            source: data.source,           // e.g. "Modern Ghana"
             content: data.content,
             url: data.url,
             riskScore: analysis.riskScore,
             aiConfidence: analysis.confidence,
             status: 'PENDING',
             protecteeId: data.protecteeId,
-            author: data.author,
-            location: 'Unknown', 
+            author: data.author,           // e.g. "John Doe"
+            location: detectedLocation,    // e.g. "Kumasi"
             createdBy: 'AI System',
             sourceUrl: data.url,
             severity: analysis.severity,
@@ -111,7 +120,7 @@ class CollectionService {
             scoreBreakdown: analysis.scoreBreakdown
           }
         });
-        console.log(`🔴 Threat Alert created: ${alert.id} (${analysis.severity})`);
+        console.log(`🔴 Threat Alert created: ${alert.id} (${analysis.severity}) - Location: ${detectedLocation}`);
       }
 
       return collected;
@@ -126,7 +135,6 @@ class CollectionService {
       const protectees = await prisma.protectee.findMany({ where: { status: 'ACTIVE' } });
       
       for (const protectee of protectees) {
-        // Use Google News RSS to search for the protectee's name
         const query = encodeURIComponent(protectee.name);
         const googleNewsUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
         
