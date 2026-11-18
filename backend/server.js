@@ -38,7 +38,7 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// ============ LIVE RESEARCH ============
+// ============ LIVE RESEARCH (24 Hours) ============
 app.get('/api/research', requireAuth, async (req, res) => {
   try {
     const query = req.query.q;
@@ -47,13 +47,11 @@ app.get('/api/research', requireAuth, async (req, res) => {
     const Parser = require('rss-parser');
     const parser = new Parser({ headers: { 'User-Agent': 'Mozilla/5.0' } });
     
-    // The "when:1d" operator forces Google News to only return articles from the last 24 hours
+    // Research uses 24 hours for up-to-the-minute news
     const searchQuery = `${query} when:1d`;
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
     
     const feed = await parser.parseURL(url);
-    
-    // Sort by date descending to ensure newest are first
     const sortedItems = feed.items.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
 
     const results = await Promise.all(sortedItems.slice(0, 10).map(async (item) => {
@@ -333,7 +331,8 @@ app.post('/api/collect/scan/:protecteeId', requireAuth, async (req, res) => {
     const protectee = await prisma.protectee.findUnique({ where: { id: req.params.protecteeId } });
     if (!protectee) return res.status(404).json({ error: 'Protectee not found' });
 
-    const searchQuery = `${protectee.name} when:1d`;
+    // Scan looks back 30 days to catch recent past threats
+    const searchQuery = `${protectee.name} when:30d`;
     const googleNewsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(searchQuery)}&hl=en-US&gl=US&ceid=US:en`;
     
     collectionService.collectRSS([googleNewsUrl], protectee.id).then(async (results) => {

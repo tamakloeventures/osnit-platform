@@ -135,7 +135,7 @@ class CollectionService {
       const protectees = await prisma.protectee.findMany({ where: { status: 'ACTIVE' } });
       
       for (const protectee of protectees) {
-        const query = encodeURIComponent(protectee.name);
+        const query = encodeURIComponent(protectee.name + " when:30d");
         const googleNewsUrl = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
         
         const newItems = await this.collectRSS([googleNewsUrl], protectee.id);
