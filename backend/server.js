@@ -20,7 +20,6 @@ global.prisma = prisma;
 
 const aiService = require('./services/aiService');
 const collectionService = require('./services/collectionService');
-const dataSourceService = require('./services/dataSourceService');
 const vettingService = require('./services/vettingService');
 
 app.use(helmet());
@@ -78,17 +77,10 @@ app.get('/api/alerts', requireAuth, async (req, res) => {
 
 app.post('/api/alerts', requireAuth, async (req, res) => {
   try {
-    const {
-      source, content, url, protecteeId, author, location
-    } = req.body;
-
-    // 1. Fetch the protectee so the AI engine can do target matching
+    const { source, content, url, protecteeId, author, location } = req.body;
     const protectee = await prisma.protectee.findUnique({ where: { id: protecteeId } });
-    
-    // 2. Run the text through the Threat Detection Engine
     const analysis = await aiService.analyzeContent(content, protectee || 'Unknown');
 
-    // 3. Save the alert with the AI-generated fields
     const alert = await prisma.alert.create({
       data: {
         source: source || 'Manual Entry',
@@ -297,8 +289,14 @@ app.post('/api/collect/scan/:protecteeId', requireAuth, async (req, res) => {
     const protectee = await prisma.protectee.findUnique({ where: { id: req.params.protecteeId } });
     if (!protectee) return res.status(404).json({ error: 'Protectee not found' });
 
-    collectionService.collectRSS([`https://news.google.com/rss/search?q=${encodeURIComponent(protectee.name)}collectionService.collectRSS(["https://citinewsroom.com/feed/", "https://www.myjoyonline.com/feed/", "https://www.adomonline.com/feed/", "https://www.ghanaweb.com/GhanaHomePage/rss/news.xml", "https://3news.com/feed/"], protectee.id)hl=en-US&gl=US&ceid=US:en`], protectee.id).then(async (results) => {
-      console.log(`Scan complete for ${protectee.name}: ${results.news?.length || 0} news items`);
+    // Use Google News RSS for reliable target searching
+    const googleNewsUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(protectee.name)}&hl=en-US&gl=US&ceid=US:en`;
+    
+    collectionService.collectRSS([googleNewsUrl], protectee.id).then(async (results) => {
+      console.log(`Scan complete for ${protectee.name}: ${results.length} news items`);
+      for (const item of results) {
+        await collectionService.storeCollectedData(item);
+      }
     }).catch(err => console.error('Scan error:', err));
 
     res.json({ message: 'Scan started in the background. Check alerts shortly.' });
